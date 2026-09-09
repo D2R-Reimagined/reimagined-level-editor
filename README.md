@@ -128,7 +128,7 @@ Bug reports should include the scene name, reproduction steps, expected/actual b
 - [Unity D2R Scene Editor](https://github.com/pairofdocs/Unity-D2R-Scene-Editor), workflow/coordinate reference; no AGPL source copied.
 - [Application icon provenance](src/D2RLevel.App/Assets/ICON-PROVENANCE.md).
 
-Third-party licenses apply to their respective components. A license for this project's own source has not yet been selected. Publishing source does not grant rights to redistribute Blizzard assets or the proprietary Granny runtime.
+This project's own source is licensed under the [MIT License](LICENSE), copyright 2026 D2R Reimagined contributors. Third-party licenses apply to their respective components. This license does not grant rights to redistribute Blizzard assets or the proprietary Granny runtime.
 
 ### DS1 NPC previews
 

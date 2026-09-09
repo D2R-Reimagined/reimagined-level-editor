@@ -11,6 +11,7 @@
     <ApplicationIcon>Assets/ReimaginedLevelEditor.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="../../LICENSE" Link="LICENSE.txt" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <Resource Include="Assets/ReimaginedLevelEditor.ico" />
     <ProjectReference Include="../D2RLevel.Assets/D2RLevel.Assets.csproj" />
     <Content Include="Native/granny2.dll" Condition="Exists('Native/granny2.dll') and '$(IncludeGrannyRuntime)' != 'false'" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
