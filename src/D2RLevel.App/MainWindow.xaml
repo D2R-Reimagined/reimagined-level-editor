@@ -14,6 +14,7 @@
             <Button x:Name="SaveCopyButton" Content="Save copy…" Click="Save_Click"/><Button Content="Missing assets…" Click="Audit_Click"/>
             <Button x:Name="UndoButton" Content="Undo" Click="Undo_Click"/><Button x:Name="RedoButton" Content="Redo" Click="Redo_Click"/>
             <Button Content="Model explorer…" Click="Models_Click"/><Button Content="DS1 workspace…" Click="Floors_Click"/>
+            <CheckBox x:Name="ShowNpcs" Content="NPCs" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Npcs_Click" ToolTip="DS1-backed NPCs in a static reference pose. Drag to move the DS1 unit; unresolved units use named markers."/>
             <CheckBox x:Name="ShowTerrain" Content="Terrain" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Terrain_Click" ToolTip="Show terrain meshes with a paired-DS1 floor reference where available. Approximate registration; not full HD biome shading."/>
             <Button Content="Focus area" Click="FocusArea_Click" ToolTip="Select a prop first. Preview a nearby working area; Home shows the whole map again."/>
             <CheckBox x:Name="FullDetail" Content="Full detail (slower)" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Detail_Click" ToolTip="Balanced uses LOD2, or LOD4 for very large presets, and 512px texture mips. Changing reloads the preview only."/>
@@ -75,7 +76,7 @@
           <TextBlock DockPanel.Dock="Top" Text="SCENE ENTITIES" FontWeight="Bold" Margin="4,8"/>
           <TextBox x:Name="Search" DockPanel.Dock="Top" ToolTip="Filter names and model paths" TextChanged="Search_Changed"/>
           <TextBlock x:Name="EntityCount" DockPanel.Dock="Bottom" Foreground="#9AAFC4" Margin="4,8"/>
-          <ListBox x:Name="Hierarchy" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">
+          <ListBox x:Name="Hierarchy" SelectionMode="Extended" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">
             <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Padding="4,5" ToolTip="{Binding PreviewModel}"/></DataTemplate></ListBox.ItemTemplate>
           </ListBox>
         </DockPanel>
@@ -96,7 +97,7 @@
           <StackPanel><TextBlock Text="HD PRESET PREVIEW" FontWeight="Bold"/>
             <TextBlock Text="Right drag: look · Wheel: move forward/back · Middle drag: pan" Foreground="#A9BED2" Margin="0,4,0,0"/>
             <TextBlock Text="Alt + right drag: orbit selection · Shift: faster travel · Ctrl: finer travel" Foreground="#A9BED2"/>
-            <TextBlock Text="Left drag: move model · Esc: cancel drag · F: frame selected · Home: frame all" Foreground="#A9BED2"/>
+            <TextBlock Text="Ctrl-click: select multiple · Left drag: move selection · Esc: cancel drag · F: frame selected · Home: frame all" Foreground="#A9BED2"/>
           </StackPanel>
         </Border>
         <Border Grid.Row="1" Background="#18212B" Padding="10">
@@ -118,7 +119,10 @@
               <Button x:Name="SavePairButton" Content="Save linked pair…" Click="SavePair_Click"/>
               <Button Content="Reset invalid links…" x:Name="ResetLinksButton" Visibility="Collapsed" Click="ResetLinks_Click"/>
             </WrapPanel>
-            <TextBlock Text="INSPECTOR" FontWeight="Bold" Margin="0,8"/>
+            <TextBlock x:Name="GroupStatus" TextWrapping="Wrap" Foreground="#A9BED2" Margin="0,10,0,4"/>
+              <TextBox x:Name="GroupName" Text="Asset group" ToolTip="Name for the saved selection group" MaxLength="100"/>
+              <WrapPanel><Button x:Name="GroupButton" Content="Group selected" Click="Group_Click"/><Button x:Name="UngroupButton" Content="Ungroup" Click="Ungroup_Click"/></WrapPanel>
+              <TextBlock Text="INSPECTOR" FontWeight="Bold" Margin="0,8"/>
             <TextBlock x:Name="SelectedName" Text="Select an entity" FontSize="18" TextWrapping="Wrap"/>
             <TextBlock x:Name="SelectedInfo" Foreground="#9AAFC4" TextWrapping="Wrap" Margin="0,6"/>
             <TextBlock x:Name="ModelLabel" TextWrapping="Wrap" FontSize="11" Foreground="#9AAFC4"/>

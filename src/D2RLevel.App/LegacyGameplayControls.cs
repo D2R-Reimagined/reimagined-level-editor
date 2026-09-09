@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -15,6 +15,8 @@ public sealed partial class LegacyFloorWindow
     private readonly TextBlock unitStatus = new() { Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
     private bool refreshingUnits;
     public event Action<int, double>? LinkUnitRequested;
+    public event Action<int>? UnitSelected;
+    public void SelectGameplayUnit(int index) { if (unitList.SelectedIndex != index) unitList.SelectedIndex = index; }
     private Button? linkUnitButton;
     internal void VerifyLinkUnitButton(int index)
     {
@@ -39,7 +41,7 @@ public sealed partial class LegacyFloorWindow
         var label = new FrameworkElementFactory(typeof(TextBlock));
         label.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding()); label.SetValue(TextBlock.ForegroundProperty, Brushes.Black);
         unitList.ItemTemplate = new DataTemplate { VisualTree = label };
-        unitList.SelectionChanged += (_, _) => { if (!refreshingUnits) { ShowUnit(); Render(); } };
+        unitList.SelectionChanged += (_, _) => { if (!refreshingUnits) { ShowUnit(); Render(); UnitSelected?.Invoke(unitList.SelectedIndex); } };
         showUnits.Click += (_, _) => Render();
         move.Click += (_, _) =>
         {

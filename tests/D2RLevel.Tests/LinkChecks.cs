@@ -1,4 +1,4 @@
-using D2RLevel.Core;
+﻿using D2RLevel.Core;
 
 internal static class LinkChecks
 {
@@ -53,6 +53,32 @@ internal static class LinkChecks
             check(sd.PatrolPoints(0).Count == 2, "deleting unit preserves patrol shared by surviving anchor");
             var (uj, ud, ul) = Fixture(); var unchanged = ud.Serialize(); ul.DeleteModel(uj.Entities[0]);
             check(ud.Serialize().SequenceEqual(unchanged) && uj.Entities.Count == 1, "unlinked model deletion leaves DS1 bytes unchanged");
+        }
+        {
+            var (gj, gd, gl) = Fixture(); var a = gj.Entities[0]; var bGroup = gj.Entities[1];
+            var stationary = gj.AddModel("data/hd/stationary.model", new(10,0,10));
+            gl.LinkFootprint(a, [new(0,1),new(1,1)],10,false);
+            gl.LinkFootprint(bGroup, [new(1,1)],10,false);
+            gl.LinkFootprint(stationary, [new(0,1)],10,false);
+            gl.LinkUnit(a,0,10); gl.LinkUnit(bGroup,1,10);
+            var jsonBefore = gj.Serialize(); var dsBefore = gd.Serialize(); var transforms = new[] { a.Transform, bGroup.Transform };
+            GroupMovement.Move(gj,gl,[a,bGroup],new(10,0,0));
+            check(Blocked(gd,0,1) && Blocked(gd,1,1) && Blocked(gd,2,1), "group move preserves stationary overlap and translates shared collision");
+            check(gd.Units[0].X == 10 && gd.Units[1].X == 17 && gd.PatrolPoints(0)[0].X == 11, "group move translates both linked units and patrol");
+            gj.Undo();
+            check(gj.Serialize().SequenceEqual(jsonBefore) && gd.Serialize().SequenceEqual(dsBefore), "one undo restores whole group JSON collision units and patrol");
+            gj.Redo(); gj.Undo();
+            gl.LinkFootprint(bGroup,[new(3,1)],10,false);
+            jsonBefore = gj.Serialize(); dsBefore = gd.Serialize();
+            throws(() => GroupMovement.Move(gj,gl,[a,bGroup],new(10,0,0)), "invalid second member rejects entire group move");
+            check(gj.Serialize().SequenceEqual(jsonBefore) && gd.Serialize().SequenceEqual(dsBefore), "late group failure rolls back prior members and collision");
+            gl.Move(a, Shift(a,10)); gj.Undo();
+            check(gd.Serialize().SequenceEqual(dsBefore), "group rollback leaves ownership usable for later moves");
+            var groups = new AssetGroups(gj); groups.Create("Well decorations",[a,bGroup]);
+            check(gj.Serialize().SequenceEqual(jsonBefore) && new AssetGroups(gj).Resolve(new AssetGroups(gj).Find(a)!).Length == 2, "saved named group reloads without editing game JSON");
+            groups.Remove([a]); check(new AssetGroups(gj).Find(bGroup) is null, "ungroup removes persisted membership");
+            File.WriteAllText(groups.Path,"broken"); var corrupt = new AssetGroups(gj);
+            throws(() => corrupt.Create("Replacement",[a,bGroup]), "corrupt group metadata cannot be silently overwritten");
         }
         var (j, d, links) = Fixture(); var e = j.Entities[0]; var start = e.Transform; var original = d.Serialize();
         links.LinkUnit(e, 0, 10); links.SaveMetadata();

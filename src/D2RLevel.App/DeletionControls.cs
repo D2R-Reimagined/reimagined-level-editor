@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using D2RLevel.Core;
 
@@ -9,6 +9,8 @@ public partial class MainWindow
     private void DeleteModel_Click(object sender, RoutedEventArgs e)
     {
         if (loading is not null || document is null || Selected is not { } entity) return;
+        if (SelectedEntities.Length > 1) { Status.Text = "Select a single model to delete it. Group deletion is not supported."; return; }
+        if (entity.GameplayUnitIndex is not null) { Status.Text = "NPC deletion is not supported in this preview yet."; return; }
         try
         {
             Scene.CancelDrag();

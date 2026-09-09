@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -38,11 +38,12 @@ public partial class MainWindow : Window
     {
         arguments = args;
         InitializeComponent();
+        Ds1Preview.ScaleChanged += () => { Scene.CancelDrag(); RefreshNpcs(); };
         Ds1Preview.OpenRequested += () => Floors_Click(this, new());
         settings = EditorSettings.Load(SettingsPath, out settingsReadWarning);
         InitializeWindowPlacement();
         FullDetail.IsChecked = args.Contains("--full-detail");
-        Scene.EntitySelected += entity => { if (!Hierarchy.Items.Contains(entity)) Search.Text = ""; Hierarchy.SelectedItem = entity; Hierarchy.ScrollIntoView(entity); };
+        Scene.EntitySelected += SelectFromViewport;
         Scene.AllowModelDragging = true;
         Scene.DragCommitted += (entity, transform) => { try { Apply(entity, transform); } catch (Exception ex) { Error(ex); } };
         Closing += OnClosing;
@@ -97,6 +98,8 @@ public partial class MainWindow : Window
             {
                 if (arguments.Contains("--workspace-smoke") || arguments.Contains("--workspace-restore-smoke"))
                 { await VerifyWorkspace(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--group-smoke")) { await VerifyGroups(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--npc-smoke")) { await VerifyNpcs(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--links-smoke")) { await VerifyLinkedWorkspace(output); Application.Current.Shutdown(0); return; }
                 if (document is null) throw new InvalidOperationException("Smoke test requires a loaded preset.");
                 string orbitMetrics = arguments.Contains("--benchmark") ? await Scene.MeasureOrbit() : "";
@@ -273,7 +276,9 @@ public partial class MainWindow : Window
                 ? (pairedScene, pairedStatus) : await LoadPairedDs1(candidate, candidateResolver, cts.Token);
             if (string.Equals(openingWorkspaceSession?.Scene.JsonPath, candidate.SourcePath, StringComparison.OrdinalIgnoreCase) && pairResult.Item1?.Collision is null)
                 throw new InvalidDataException("Workspace scene could not load its DS1: " + pairResult.Item2);
+            var nextNpcs = await Task.Run(() => NpcPreviewLoader.Load(pairResult.Item1, candidateResolver, PresetPairing.Split(candidate.SourcePath, "hd/env/preset")?.DataRoot, progress, cts.Token), cts.Token);
             result = await Task.Run(() => TerrainPreview.Apply(result, pairResult.Item1, cts.Token), cts.Token);
+            var nextGround = await Task.Run(() => new NpcGround(result.Items, cts.Token), cts.Token);
             cts.Token.ThrowIfCancellationRequested();
             if (document != candidate)
             {
@@ -281,16 +286,17 @@ public partial class MainWindow : Window
                 workspaceSession = string.Equals(openingWorkspaceSession?.Scene.JsonPath, candidate.SourcePath, StringComparison.OrdinalIgnoreCase) ? openingWorkspaceSession : null;
                 exploringWorkspace = false; SetWorkspaceView();
             }
-            document = candidate; resolver = candidateResolver;
+            document = candidate; resolver = candidateResolver; assetGroups = new(candidate);
             (pairedScene, pairedStatus) = pairResult;
             Ds1Preview.SetScene(pairedScene, pairedStatus);
             foreach (var item in result.Items) if (addedModels.ContainsKey(item.Entity)) addedModels[item.Entity] = item;
             loadedFullDetail = fullDetail;
             Scene.SetScene(arguments.Contains("--no-batching") ? result with { Batches = null } : result);
             Scene.SetTerrainVisible(ShowTerrain.IsChecked == true);
+            npcItems.Clear(); npcGround = nextGround; npcPreview = nextNpcs; npcAct = pairedScene?.Map.Act ?? 0; RefreshNpcs();
             InitializeLinks();
             Search.Text = ""; Filter();
-            Diagnostics.Text = string.Join(Environment.NewLine, result.Diagnostics);
+            Diagnostics.Text = string.Join(Environment.NewLine, result.Diagnostics.Concat(npcPreview.Diagnostics));
             Diagnostics.Text += $"\nWPF rendering tier: {System.Windows.Media.RenderCapability.Tier >> 16} · process mode: {System.Windows.Media.RenderOptions.ProcessRenderMode}";
             Status.Text = $"{result.LoadedModels}/{result.Items.Count} model instances loaded · {result.Items.Count - result.LoadedModels} missing/unsupported markers · {result.Diagnostics.Count} diagnostics";
             if (result.MissingDecoderModels > 0) Status.Text = $"{result.LoadedModels}/{result.Items.Count} models loaded · {result.MissingDecoderModels} need a Granny decoder — click Granny decoder…";
@@ -428,9 +434,11 @@ public partial class MainWindow : Window
             pairedStatus = "DS1: " + Path.GetFileName(pairedScene.Ds1Path);
             Ds1Preview.SetScene(pairedScene, pairedStatus);
             InitializeLinks();
+            RefreshNpcs();
         }
         RefreshPair();
         window.SceneChanged += RefreshPair;
+        window.UnitSelected += index => { if (!syncingNpcs && Selected?.GameplayUnitIndex != index) { Search.Text = ""; Hierarchy.SelectedItem = npcItems.FirstOrDefault(i => i.Entity.GameplayUnitIndex == index)?.Entity ?? Selected; } };
         window.Closed += (_, _) => ds1Window = null;
         window.Activated += (_, _) => window.UpdateHdFootprint(Selected is { } current ? Scene.GetFootprint(current) : null);
         window.LinkUnitRequested += (index, scale) =>
@@ -440,32 +448,43 @@ public partial class MainWindow : Window
         };
         window.LinkFootprintRequested += (tiles, scale, claim) => EditLink(links => links.LinkFootprint(Selected ?? throw new InvalidOperationException("Select an HD model first."), tiles, scale, claim));
         window.SaveWorkspaceRequested += () => SavePair_Click(this, new());
-        window.ConfigureLinkedCollision(placementLinks, Selected);
+        window.ConfigureLinkedCollision(placementLinks, Selected?.GameplayUnitIndex is null ? Selected : null);
         window.Show();
     }
     private void Filter()
     {
         var search = Search.Text.Trim();
-        var selected = Selected;
-        var matches = document?.Entities.Where(e => e.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+        var selected = SelectedEntities;
+        var matches = document?.Entities.Concat(npcItems.Select(i => i.Entity)).Where(e => e.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
             e.ModelPaths.Any(p => p.Contains(search, StringComparison.OrdinalIgnoreCase))).ToArray() ?? [];
-        Hierarchy.ItemsSource = matches;
-        if (selected is not null && matches.Contains(selected)) Hierarchy.SelectedItem = selected;
-        EntityCount.Text = $"{matches.Length} / {document?.Entities.Count ?? 0} entities";
+        changingSelection = true;
+        try { Hierarchy.ItemsSource = matches; }
+        finally { changingSelection = false; }
+        SetSelection(selected.Where(matches.Contains));
+        EntityCount.Text = $"{matches.Length} / {(document?.Entities.Count ?? 0) + npcItems.Count} entities";
     }
-    private void Selection_Changed(object sender, SelectionChangedEventArgs e) { Scene.Select(Selected); PopulateInspector(); }
+    private void Selection_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (changingSelection) return;
+        if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0 && SelectedEntities.Length == 1 && Selected is { } entity && assetGroups?.Find(entity) is { } group)
+        {
+            var members = assetGroups.Resolve(group);
+            if (members.Length > 1) { Search.Text = ""; SetSelection(members); return; }
+        }
+        UpdateSelection();
+    }
     private void PopulateInspector()
     {
         RefreshLinkStatus();
         Ds1Preview.Select(Selected);
         ds1Window?.UpdateHdFootprint(Selected is { } current ? Scene.GetFootprint(current) : null);
-        ds1Window?.ConfigureLinkedCollision(placementLinks, Selected);
+        ds1Window?.ConfigureLinkedCollision(placementLinks, Selected?.GameplayUnitIndex is null ? Selected : null);
         var entity = Selected;
         SelectedName.Text = entity?.Name ?? "Select an entity";
-        SelectedInfo.Text = entity is null ? "" : $"ID {entity.Id}\n{entity.Components.Count} preserved components";
-        ModelLabel.Text = entity?.PreviewModel ?? "No static model";
+        SelectedInfo.Text = entity is null ? "" : entity.GameplayUnitIndex is { } npcIndex ? $"DS1 unit #{npcIndex} · gameplay placement" : $"ID {entity.Id}\n{entity.Components.Count} preserved components";
+        ModelLabel.Text = entity?.GameplayUnitIndex is not null ? "DS1 character · static reference pose" : entity?.PreviewModel ?? "No static model";
         RawJson.Text = entity?.RawJson ?? "";
-        TransformPanel.IsEnabled = loading is null && entity?.CanTransform == true && !entity.HasParent;
+        TransformPanel.IsEnabled = loading is null && entity?.CanTransform == true && !entity.HasParent && entity.GameplayUnitIndex is null;
         if (entity?.CanTransform != true) return;
         var t = entity.Transform;
         double[] values = [t.Position.X, t.Position.Y, t.Position.Z, t.Orientation.X, t.Orientation.Y, t.Orientation.Z, t.Orientation.W, t.Scale.X, t.Scale.Y, t.Scale.Z];
@@ -484,6 +503,16 @@ public partial class MainWindow : Window
     }
     private void Apply(PresetEntity entity, EntityTransform transform)
     {
+        if (SelectedEntities.Length > 1 && SelectedEntities.Contains(entity))
+        {
+            if (transform.Orientation != entity.Transform.Orientation || transform.Scale != entity.Transform.Scale)
+                throw new InvalidOperationException("Groups support translation only.");
+            var p = entity.Transform.Position; var t = transform.Position;
+            var members = SelectedEntities;
+            GroupMovement.Move(document!, placementLinks, members, new(t.X-p.X, t.Y-p.Y, t.Z-p.Z));
+            Status.Text = $"Moved {members.Length} assets together. Linked DS1 units and collision follow; Ctrl+Z undoes the entire move."; return;
+        }
+        if (entity.GameplayUnitIndex is not null) { MoveNpc(entity, transform); return; }
         if (placementLinks is not null) placementLinks.Move(entity, transform);
         else if (File.Exists(document!.SourcePath + PlacementLinks.Suffix)) throw new InvalidOperationException("Load the linked DS1 before moving objects. " + pairedStatus);
         else document!.SetTransform(entity, transform);
@@ -542,7 +571,8 @@ public partial class MainWindow : Window
         bool busy = loading is not null;
         Scene.IsEnabled = !busy;
         DecoderNotice.Visibility = ModelReader.IsDecoderConfigured ? Visibility.Collapsed : Visibility.Visible;
-        Toolbar.IsEnabled = !busy; Hierarchy.IsEnabled = !busy; TransformPanel.IsEnabled = !busy && Selected?.CanTransform == true && !Selected.HasParent;
+        Toolbar.IsEnabled = !busy; Hierarchy.IsEnabled = !busy; TransformPanel.IsEnabled = !busy && Selected?.CanTransform == true && !Selected.HasParent && Selected.GameplayUnitIndex is null;
+        UpdateGroupControls();
         CancelButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         UndoButton.IsEnabled = document?.CanUndo == true; RedoButton.IsEnabled = document?.CanRedo == true;
         WorkspaceExplorerButton.IsEnabled = !busy && workspaceFolder is not null;
@@ -550,7 +580,7 @@ public partial class MainWindow : Window
         WorkspaceScenes.IsEnabled = !busy;
         SaveCopyButton.Visibility = workspaceSession is not null || exploringWorkspace ? Visibility.Collapsed : Visibility.Visible;
         SavePairButton.Content = workspaceSession is not null ? "Save Scene" : "Save linked pair…";
-        DeleteModelButton.IsEnabled = !busy && Selected is { HasParent: false, IsTerrain: false, PreviewModel: not null };
+        DeleteModelButton.IsEnabled = !busy && SelectedEntities.Length == 1 && Selected is { HasParent: false, IsTerrain: false, PreviewModel: not null };
         RefreshLinkStatus();
         Title = $"Reimagined Level Editor · {(document is null ? "Workspace" : Path.GetFileName(document.SourcePath))}{(document?.IsDirty == true ? " *" : "")}";
     }

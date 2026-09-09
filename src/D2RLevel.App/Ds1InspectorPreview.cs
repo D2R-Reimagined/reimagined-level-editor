@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -19,6 +19,8 @@ public sealed class Ds1InspectorPreview : StackPanel
     private string pairStatus = "";
     private double magnification = .55;
     public event Action? OpenRequested;
+    public double UnitsPerTile => double.TryParse(units.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && double.IsFinite(value) && value > 0 ? value : 10;
+    public event Action? ScaleChanged;
     public bool HasPreview => preview.Source is not null;
     public string StatusText => status.Text;
     public Ds1InspectorPreview()
@@ -33,7 +35,7 @@ public sealed class Ds1InspectorPreview : StackPanel
         var scale = new WrapPanel(); Children.Add(scale);
         scale.Children.Add(new TextBlock { Text = "HD units/tile", VerticalAlignment = VerticalAlignment.Center }); scale.Children.Add(units);
         units.ToolTip = "Approximate HD-to-DS1 scale. Check alignment for this preset; no object ownership is inferred.";
-        units.TextChanged += (_, _) => Refresh();
+        units.TextChanged += (_, _) => { Refresh(); ScaleChanged?.Invoke(); };
     }
     public void SetScene(LegacyFloorScene? next, string message)
     { if (!ReferenceEquals(scene, next)) textures.Clear(); scene = next; pairStatus = message; Refresh(); }

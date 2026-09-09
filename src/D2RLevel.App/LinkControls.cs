@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using D2RLevel.Core;
 using Microsoft.Win32;
@@ -23,10 +23,12 @@ public partial class MainWindow
     }
     private void LinkedHistoryChanged(object? subject)
     {
+        if (subject is PresetEntity[] members) RefreshGroupMove(members);
         if (document?.History.Shared != true) return;
         try
         {
             if (subject is PresetEntity entity) SyncHistory(entity);
+            RefreshNpcs();
             ds1Window?.RefreshFromWorkspace();
             Ds1Preview.SetScene(pairedScene, pairedStatus);
             PopulateInspector(); RefreshState();
@@ -40,11 +42,12 @@ public partial class MainWindow
         LinkStatus.ToolTip = placementLinks?.SidecarPath;
         var link = placementLinks?.Warning is null && Selected is { } entity ? placementLinks?.Find(entity) : null;
         ToggleLinkButton.Content = link is null ? "Link in DS1…" : "Unlink";
-        ToggleLinkButton.IsEnabled = loading is null && Selected is { CanTransform: true, HasParent: false } && placementLinks?.Warning is null;
+        ToggleLinkButton.IsEnabled = loading is null && Selected is { CanTransform: true, HasParent: false, GameplayUnitIndex: null } && placementLinks?.Warning is null;
         EditCollisionButton.IsEnabled = ToggleLinkButton.IsEnabled && placementLinks is not null;
         EditCollisionButton.Content = link?.Tiles.Length > 0 ? "Edit collision…" : "Add collision…";
         AlignUnitButton.Visibility = link?.Unit is not null ? Visibility.Visible : Visibility.Collapsed;
         AlignUnitButton.IsEnabled = ToggleLinkButton.IsEnabled;
+        if (Selected?.GameplayUnitIndex is not null) { LinkStatus.Text = "DS1 NPC preview. Drag to move its gameplay position and patrol. Save Scene or Save linked pair to save. Static reference pose; no animation."; return; }
         if (placementLinks?.Warning is { } warning) { LinkStatus.Text = warning; return; }
         LinkStatus.Text = placementLinks is null ? "Linking unavailable: " + pairedStatus :
             link is null ? "No DS1 link. Select a unit or suggest a footprint in DS1, then link it to this HD model." :
@@ -65,6 +68,7 @@ public partial class MainWindow
     {
         try
         {
+            if (Selected?.GameplayUnitIndex is not null) throw new InvalidOperationException("NPC previews already represent their DS1 record and do not need an HD link.");
             if (placementLinks is null) throw new InvalidOperationException("Load the JSON and matching DS1 first.");
             edit(placementLinks);
             RefreshLinkStatus();
@@ -105,7 +109,8 @@ public partial class MainWindow
         {
             string path = placementLinks.ExportPair(dialog.FolderName);
             Status.Text = "Saved and verified linked pair. Open this JSON next time: " + path;
-            RefreshLinkStatus(); RefreshState(); ds1Window?.RefreshFromWorkspace();
+            RefreshLinkStatus(); RefreshState(); RefreshNpcs();
+            ds1Window?.RefreshFromWorkspace();
             Notify("Linked pair saved", "JSON, DS1 and links exported. Open this JSON next time:\n" + path);
         }
         catch (Exception ex) { Error(ex); }

@@ -129,3 +129,19 @@ Bug reports should include the scene name, reproduction steps, expected/actual b
 - [Application icon provenance](src/D2RLevel.App/Assets/ICON-PROVENANCE.md).
 
 Third-party licenses apply to their respective components. A license for this project's own source has not yet been selected. Publishing source does not grant rights to redistribute Blizzard assets or the proprietary Granny runtime.
+
+### DS1 NPC previews
+
+The **NPCs** checkbox shows DS1 monster/NPC records in the HD viewport. Town NPCs resolve through the act-specific `monpreset.txt`, `monstats.txt`, and HD character definitions, with workspace overrides before the asset folder. Search names such as `akara` in the entity list, select a preview, and drag it to move its DS1 position and patrol. Selection follows between the DS1 window and HD view. Undo/redo is shared; use **Save Scene** or **Save linked pair** to save gameplay changes.
+
+These are transient static reference poses, never extra entities in the exported HD JSON. Terrain geometry supplies preview height where available; the HD units/tile setting controls horizontal placement. Animation, game character shaders, superunique/spawn-group resolution, and NPC creation/deletion are not implemented. Missing or unsupported character assets retain selectable named markers. A unit already linked to an HD prop must be moved through that prop so its existing collision link remains intact.
+
+Developer check with extracted Act 1 town assets: launch with `--preset <towns1.json> --data <asset-root> --npc-smoke --smoke-output <output-folder>`. The smoke verifies a real Akara mesh, DS1 movement, drag cancellation/commit, undo/redo, copy save/reopen, unchanged JSON, the visibility toggle, and DS1 selection synchronization.
+
+### Asset groups
+
+Ctrl-click models in the viewport to add/remove them from the selection; Shift-click adds models. The entity list supports Ctrl/Shift multi-selection too. Drag any selected model to move the selection together, press Esc to cancel, and use F to frame the entire selection. One undo restores the complete move, including linked DS1 units, patrols, and collision. Shared collision belonging to other objects stays protected; a rejected destination rolls back the entire move.
+
+For reusable groups, enter a name and choose **Group selected**. Clicking a group member selects its whole group. **Ungroup** removes the grouping without moving models or changing gameplay links. Group membership saves immediately beside the preset as `<preset>.rle-groups.json`; keep that file with your working preset to retain groups across launches. It is editor metadata and can be gitignored (`*.rle-groups.json` and `*.rle-groups.json.bak`). Game JSON does not gain parent entities or group fields. Save-copy exports do not carry this local grouping file automatically.
+
+This first grouping implementation supports translation of unparented HD models. NPCs and terrain are edited separately; group rotation, scaling, and deletion are not included. Developer renderer check: `--group-smoke --smoke-output <folder>` with the same Act 1 preset/data arguments as the NPC smoke above. It works on copies inside the output folder.

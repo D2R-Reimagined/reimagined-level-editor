@@ -41,3 +41,7 @@ TestResults/
 *.physics
 *.skeleton
 *.mpq
+
+# Local editor selection groups
+*.rle-groups.json
+*.rle-groups.json.bak

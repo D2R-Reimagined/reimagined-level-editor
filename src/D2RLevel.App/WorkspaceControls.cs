@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using D2RLevel.Core;
@@ -46,6 +46,8 @@ public partial class MainWindow
     {
         Scene.CancelDrag(); document = null; pairedScene = null; workspaceSession = null;
         pairedStatus = "Choose a workspace scene."; InitializeLinks();
+        assetGroups = null;
+        npcItems.Clear(); npcPreview = new(new(), []);
         addedModels.Clear(); removedModels.Clear(); Scene.SetScene(new([], [], 0));
         Filter(); Ds1Preview.SetScene(null, pairedStatus); PopulateInspector();
         exploringWorkspace = true; SetWorkspaceView();

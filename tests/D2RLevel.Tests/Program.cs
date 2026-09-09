@@ -299,6 +299,25 @@ try
         real.Undo();
         Check(real.Serialize().SequenceEqual(File.ReadAllBytes(args[0])), "real town undo is lossless");
     }
+    var excel = Path.Combine(resolver.DataRoot, "global", "excel"); Directory.CreateDirectory(excel);
+    var characters = Path.Combine(hd, "character"); Directory.CreateDirectory(Path.Combine(characters, "npc"));
+    File.WriteAllText(Path.Combine(excel, "monpreset.txt"), "Act\tPlace\n1\tgheed\n1\takara\n2\tother\n1\tspawn_group\n");
+    File.WriteAllText(Path.Combine(excel, "monstats.txt"), "Id\nakaRA\ngheed\nother\n");
+    File.WriteAllText(Path.Combine(characters, "monsters.json"), "{\"akara\":\"akara\",\"other\":\"akara\"}");
+    File.WriteAllText(Path.Combine(characters, "npc", "akara.json"), "{}");
+    var npcCatalog = new NpcCatalog(resolver, null);
+    var npcUnit = new Ds1Unit(0, 1, 1, 3, 4, 0);
+    Check(npcCatalog.Lookup(1, npcUnit).Name == "akara" && npcCatalog.Lookup(1, npcUnit).DefinitionPath is not null, "NPC ID resolves by zero-based act preset, not MonStats row");
+    Check(npcCatalog.Lookup(2, npcUnit with { Id = 0 }).Name == "other", "NPC preset lookup is act-specific");
+    Check(npcCatalog.Lookup(1, npcUnit with { Id = 2 }).Warning is not null, "Unresolved spawn group retains marker");
+    Check(npcCatalog.Lookup(1, npcUnit with { Id = 99 }).Warning is not null, "Unknown NPC ID retains marker");
+    var overrideRoot = Path.Combine(folder, "npc-mod"); Directory.CreateDirectory(Path.Combine(overrideRoot, "hd"));
+    Directory.CreateDirectory(Path.Combine(overrideRoot, "global", "excel"));
+    File.WriteAllText(Path.Combine(overrideRoot, "global", "excel", "monpreset.txt"), "Act\tPlace\n1\takara\n");
+    Check(new NpcCatalog(resolver, overrideRoot).Lookup(1, npcUnit with { Id = 0 }).Name == "akara", "Mod NPC table wins while HD assets fall back");
+    var npcProxy = PresetEntity.GameplayPreview(7, "Akara", new(new(6,0,8),new(0,0,0,1),new(1,1,1)));
+    Check(npcProxy.Index == -8 && npcProxy.GameplayUnitIndex == 7 && npcProxy.Transform.Position.X == 6, "Transient NPC identity cannot collide with JSON entities");
+    Throws(() => PresetDocument.ModelPreview("data/hd/crate.model").SetTransform(npcProxy, npcProxy.Transform), "NPC proxy cannot be written into preset JSON");
     Console.WriteLine($"All {passed} checks passed.");
 }
 finally { Directory.Delete(folder, true); }

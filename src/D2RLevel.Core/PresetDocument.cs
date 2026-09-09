@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -28,6 +28,22 @@ public sealed class PresetEntity
 {
     internal JsonObject Data { get; }
     public int Index { get; }
+    public int? GameplayUnitIndex { get; private init; }
+    public static PresetEntity GameplayPreview(int index, string name, EntityTransform transform)
+    {
+        var data = new JsonObject { ["id"] = "ds1:" + index, ["name"] = name,
+            ["components"] = new JsonArray(new JsonObject { ["type"] = "TransformDefinitionComponent" }) };
+        var entity = new PresetEntity(data, -index - 1) { GameplayUnitIndex = index };
+        entity.UpdateGameplayTransform(transform); return entity;
+    }
+    public void UpdateGameplayTransform(EntityTransform transform)
+    {
+        if (GameplayUnitIndex is null) throw new InvalidOperationException("Only gameplay preview transforms can be updated directly.");
+        transform.Validate(); var t = TransformNode!;
+        t["position"] = new JsonObject { ["x"] = transform.Position.X, ["y"] = transform.Position.Y, ["z"] = transform.Position.Z };
+        t["orientation"] = new JsonObject { ["x"] = transform.Orientation.X, ["y"] = transform.Orientation.Y, ["z"] = transform.Orientation.Z, ["w"] = transform.Orientation.W };
+        t["scale"] = new JsonObject { ["x"] = transform.Scale.X, ["y"] = transform.Scale.Y, ["z"] = transform.Scale.Z };
+    }
     public string Name => Data["name"]?.GetValue<string>() ?? $"Entity {Index}";
     public string Id => Data["id"]?.ToJsonString() ?? "(none)";
     public bool IsTerrain => Components.Any(c => c["type"]?.GetValue<string>() == "TerrainDefinitionComponent");

@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -68,6 +68,10 @@ public sealed class SceneViewport : Grid
     private Point dragPointer;
     private Point3D dragAnchor;
     private bool dragging, detached;
+    private PresetEntity[] selectedMembers = [];
+    private Dictionary<PresetEntity, EntityTransform> dragMembers = new();
+    public void SelectMany(IEnumerable<PresetEntity> members, PresetEntity? primary)
+    { selectedMembers = members.Distinct().ToArray(); Select(primary); }
     public Vector3d PlacementPosition => GroundPoint(new(ActualWidth / 2, ActualHeight / 2), 0) is { } p
         ? new(p.X, 0, p.Z) : new(target.X, 0, target.Z);
 
@@ -118,6 +122,9 @@ public sealed class SceneViewport : Grid
         CancelDrag();
         if (!AllowModelDragging || !entity.CanTransform || entity.HasParent || !visuals.ContainsKey(entity.Index) ||
             GroundPoint(point, entity.Transform.Position.Y) is not { } anchor) return false;
+        var members = selectedMembers.Contains(entity) ? selectedMembers : [entity];
+        if (members.Length > 1 && members.Any(e => !GroupMovement.CanGroup(e) || !visuals.ContainsKey(e.Index))) return false;
+        dragMembers = members.ToDictionary(e => e, e => e.Transform);
         dragEntity = entity; dragStart = dragValue = entity.Transform; dragAnchor = anchor; dragPointer = point;
         return true;
     }
@@ -129,32 +136,62 @@ public sealed class SceneViewport : Grid
         if (!dragging)
         {
             dragging = true;
-            if (entityBatches.ContainsKey(entity.Index))
-            {
-                RebuildBatches(entity, entity); viewport.Children.Add(visuals[entity.Index]); detached = true;
-            }
+            foreach (var member in dragMembers.Keys)
+                if (entityBatches.TryGetValue(member.Index, out var batches))
+                {
+                    foreach (var batch in batches) batch.SetIncluded(member, false);
+                    if (!viewport.Children.Contains(visuals[member.Index])) viewport.Children.Add(visuals[member.Index]);
+                    detached = true;
+                }
+            RebuildMemberBatches(dragMembers.Keys);
             Cursor = Cursors.SizeAll;
         }
         var delta = ground - dragAnchor;
         dragValue = dragStart with { Position = new(dragStart.Position.X + delta.X, dragStart.Position.Y, dragStart.Position.Z + delta.Z) };
-        visuals[entity.Index].Transform = Transform(dragValue); Select(entity);
+        foreach (var (member, start) in dragMembers)
+            visuals[member.Index].Transform = Transform(start with { Position = new(start.Position.X + delta.X, start.Position.Y, start.Position.Z + delta.Z) });
+        Select(entity);
     }
     public void CancelDrag() => EndDrag(false);
     internal void EndDrag(bool commit)
     {
         var entity = dragEntity; var value = dragValue; bool changed = dragging && value != dragStart;
         bool restoreBatches = detached;
+        var members = dragMembers.Keys.ToArray(); dragMembers.Clear();
         dragEntity = null; dragging = detached = false; Cursor = null;
         if (IsMouseCaptured) ReleaseMouseCapture();
         if (entity is null) return;
-        if (restoreBatches) viewport.Children.Remove(visuals[entity.Index]);
+        if (restoreBatches) foreach (var member in members)
+            if (entityBatches.TryGetValue(member.Index, out var batches))
+            {
+                viewport.Children.Remove(visuals[member.Index]);
+                foreach (var batch in batches) batch.SetIncluded(member, true);
+            }
         try { if (commit && changed) DragCommitted?.Invoke(entity, value); }
         finally
         {
-            visuals[entity.Index].Transform = Transform(entity.Transform);
-            if (restoreBatches) RebuildBatches(entity);
+            foreach (var member in members)
+            {
+                if (visuals.TryGetValue(member.Index, out var visual)) visual.Transform = Transform(member.Transform);
+            }
+            if (restoreBatches) RebuildMemberBatches(members);
             Select(entity); UpdateVisibility();
         }
+    }
+    private void RebuildMemberBatches(IEnumerable<PresetEntity> members)
+    {
+        foreach (var batch in members.SelectMany(e => entityBatches.TryGetValue(e.Index, out var batches) ? batches : []).Distinct())
+        {
+            batchHits.Remove(batch.Model); batch.Rebuild(); batchHits[batch.Model] = batch;
+            batchVisuals[batch].Content = batch.Model; batchBounds[batch] = batch.Model.Bounds;
+        }
+    }
+    public void UpdateEntities(IEnumerable<PresetEntity> members)
+    {
+        var items = members.ToArray();
+        foreach (var entity in items)
+            if (visuals.TryGetValue(entity.Index, out var visual)) visual.Transform = Transform(entity.Transform);
+        RebuildMemberBatches(items); UpdateVisibility(); Select(selected);
     }
     private void RebuildBatches(PresetEntity entity, PresetEntity? exclude = null)
     {
@@ -215,7 +252,7 @@ public sealed class SceneViewport : Grid
     public void SetScene(LoadedScene scene)
     {
         CancelDrag();
-        viewport.Children.Clear(); entities.Clear(); visuals.Clear(); placeholders.Clear(); selected = null;
+        viewport.Children.Clear(); entities.Clear(); visuals.Clear(); placeholders.Clear(); selected = null; selectedMembers = [];
         batchHits.Clear(); batchVisuals.Clear(); entityBatches.Clear(); batchBounds.Clear();
         var lighting = new Model3DGroup();
         lighting.Children.Add(new AmbientLight(Color.FromRgb(150, 150, 150)));
@@ -278,13 +315,18 @@ public sealed class SceneViewport : Grid
         selection.Content = null;
         if (entity?.IsTerrain == true && !terrainVisible) return;
         if (entity is null || !visuals.TryGetValue(entity.Index, out var visual)) return;
-        var bounds = visual.Transform.TransformBounds(visual.Content.Bounds);
-        var outline = WireBox(bounds, Colors.Turquoise); outline.Freeze(); selection.Content = outline;
+        var outlines = new Model3DGroup();
+        foreach (var member in selectedMembers.Contains(entity) ? selectedMembers : [entity])
+            if (visuals.TryGetValue(member.Index, out var v) && (!member.IsTerrain || terrainVisible))
+                outlines.Children.Add(WireBox(v.Transform.TransformBounds(v.Content.Bounds), Colors.Turquoise));
+        outlines.Freeze(); selection.Content = outlines;
     }
     public void FrameSelected()
     {
-        if (selected is not null && visuals.TryGetValue(selected.Index, out var visual))
-            Frame(visual.Transform.TransformBounds(visual.Content.Bounds));
+        var bounds = Rect3D.Empty;
+        foreach (var member in selectedMembers.Length > 0 ? selectedMembers : selected is { } e ? [e] : Array.Empty<PresetEntity>())
+            if (visuals.TryGetValue(member.Index, out var visual)) bounds.Union(visual.Transform.TransformBounds(visual.Content.Bounds));
+        if (!bounds.IsEmpty) Frame(bounds);
     }
     public ModelFootprint? GetFootprint(PresetEntity entity)
     {
@@ -376,7 +418,7 @@ public sealed class SceneViewport : Grid
         if (entity is not null)
         {
             EntitySelected?.Invoke(entity);
-            if (BeginDrag(entity, e.GetPosition(this))) CaptureMouse();
+            if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0 && BeginDrag(entity, e.GetPosition(this))) CaptureMouse();
             e.Handled = true;
         }
     }

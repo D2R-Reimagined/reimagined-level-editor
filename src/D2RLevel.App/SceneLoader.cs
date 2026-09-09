@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
@@ -9,7 +9,7 @@ namespace D2RLevel.App;
 
 public static class SceneLoader
 {
-    public static LoadedScene Load(PresetDocument doc, AssetResolver? resolver, IProgress<string> progress, CancellationToken token, bool fullDetail = true)
+    public static LoadedScene Load(PresetDocument doc, AssetResolver? resolver, IProgress<string> progress, CancellationToken token, bool fullDetail = true, Func<string, bool, string>? resolve = null)
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
         int preferredLod = fullDetail ? 0 : doc.Entities.Count > 2000 ? 4 : 2;
@@ -42,7 +42,7 @@ public static class SceneLoader
                 try
                 {
                     if (resolver is null) throw new InvalidOperationException("No asset folder selected.");
-                    var asset = ModelReader.Load(resolver.ResolvePreviewModel(path, preferredLod));
+                    var asset = ModelReader.Load(resolve?.Invoke(path, true) ?? resolver.ResolvePreviewModel(path, preferredLod));
                     modelTextures[path] = asset.TexturePaths ?? [];
                     model = new Model3DGroup();
                     foreach (var part in asset.Parts)
@@ -65,7 +65,7 @@ public static class SceneLoader
                                 cached = material;
                                 try
                                 {
-                                    var pixels = TextureReader.Load(resolver.Resolve(albedo), fullDetail ? 1024 : 512);
+                                    var pixels = TextureReader.Load(resolve?.Invoke(albedo, false) ?? resolver.Resolve(albedo), fullDetail ? 1024 : 512);
                                     textureBytes += pixels.Rgba.Length;
                                     // WPF's Bgra32 format needs a red/blue swap.
                                     for (int i = 0; i < pixels.Rgba.Length; i += 4)
@@ -95,7 +95,7 @@ public static class SceneLoader
             items.Add(new(entity, model ?? proxy, model is null, modelTextures.GetValueOrDefault(path)));
         }
         if (doc.Entities.Any(e => e.ModelPaths.Count > 1)) messages.Add("Variation preview uses the first listed model; all variants remain preserved in JSON.");
-        messages.Add("Preview: static meshes + albedo. Particles, biome shading, skeletal animation and DS1 gameplay are not rendered.");
+        messages.Add("Preview: static meshes + albedo. Particles, biome shading, skeletal animation is not rendered. DS1 NPC previews use a static reference pose.");
         long Triangles(Model3D model) => model is GeometryModel3D { Geometry: MeshGeometry3D mesh } ? mesh.TriangleIndices.Count / 3 :
             model is Model3DGroup group ? group.Children.Sum(Triangles) : 0;
         messages.Add($"Scene metrics: {(fullDetail ? "Full detail" : $"Balanced (LOD{preferredLod} / 512px)")} · {items.Sum(i => Triangles(i.Geometry)):N0} instanced triangles · {textureBytes / 1048576d:F1} MiB decoded textures · {timer.Elapsed.TotalSeconds:F2}s load");
