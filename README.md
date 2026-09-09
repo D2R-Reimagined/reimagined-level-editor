@@ -98,6 +98,18 @@ Creates a timestamped ZIP and SHA-256 checksum under `artifacts/releases/`. Extr
 
 Granny is included by default. Use `-IncludeGrannyRuntime:$false` to produce a package without it. See [runtime provenance](src/D2RLevel.App/Native/NOTICE.txt) for its source, hash and unresolved redistribution status. Packages contain no game assets or personal settings.
 
+## GitHub releases
+
+After the workflows are pushed to `master`, open **Actions → Release → Run workflow**, select `master`, and enter a version such as `1.0.0` or `1.1.0-beta.1`. An optional leading `v` is accepted. Build metadata is not accepted; Windows version components must be no greater than 65534.
+
+The workflow builds and tests on Windows, packages the self-contained editor with Granny, embeds the supplied version, generates semantic release notes, and uploads the ZIP and SHA-256 checksum. It tags the exact tested commit as `v<version>` and marks prerelease versions appropriately. Version selection is manual; commit types categorize notes rather than automatically choosing a version. Source project files are not modified and no version-bump commit is created.
+
+Release notes group `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `style`, `chore` and `revert` commits, highlight `!` / `BREAKING CHANGE:` markers, and retain other commits in Other Changes. Like the launcher, **PR Semantic Commits** requires at least one semantic commit in each PR to `master`, for example `feat(editor): add scene search` or `fix(collision): preserve shared blocking`. Merge commits are excluded from this check. Enable that status check in branch rules if it should block merges.
+
+The release uses the built-in `GITHUB_TOKEN` with `contents: write`; no launcher GitHub App secrets are required. Repository rules must permit it to create release tags. Runs are serialized and existing tags are rejected, not overwritten. If upload fails after tagging, inspect the tag and any draft release and recover that release manually; rerunning with the same version intentionally fails. GitHub CLI uploads assets before publishing the release ([CLI documentation](https://cli.github.com/manual/gh_release_create)).
+
+Local automation checks: `./.github/scripts/Test-ReleaseAutomation.ps1`. To build a versioned package without releasing it, use `./scripts/Publish-Portable.ps1 -Version 1.0.0`.
+
 ## Validation and feedback
 
 ```powershell

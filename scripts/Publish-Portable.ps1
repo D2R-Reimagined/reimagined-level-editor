@@ -1,12 +1,20 @@
-param([string]$DotNet = 'dotnet', [switch]$IncludeGrannyRuntime = $true)
+param([string]$DotNet = 'dotnet', [switch]$IncludeGrannyRuntime = $true, [string]$Version)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+$versionArgs = @()
+$suffix = ''
+if ($Version) {
+    $release = & (Join-Path $repo '.github/scripts/Resolve-ReleaseVersion.ps1') -Version $Version
+    $Version = $release.Version
+    $versionArgs = @("-p:Version=$Version", '-p:ContinuousIntegrationBuild=true')
+    $suffix = "-v$Version"
+}
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $destination = Join-Path $repo "artifacts/releases/$stamp"
 $package = Join-Path $destination 'Reimagined-Level-Editor-win-x64'
 New-Item -ItemType Directory -Path $package -Force | Out-Null
 if ($IncludeGrannyRuntime -and !(Test-Path -LiteralPath (Join-Path $repo 'src/D2RLevel.App/Native/granny2.dll'))) { throw 'Supply your licensed Native/granny2.dll before including the runtime.' }
-& $DotNet publish (Join-Path $repo 'src/D2RLevel.App/D2RLevel.App.csproj') -c Release -r win-x64 --self-contained true '-p:PublishProfile=Portable' '-p:DebugType=none' '-p:DebugSymbols=false' "-p:IncludeGrannyRuntime=$($IncludeGrannyRuntime.IsPresent.ToString().ToLowerInvariant())" "-p:BaseOutputPath=$destination/build/" -o $package
+& $DotNet publish (Join-Path $repo 'src/D2RLevel.App/D2RLevel.App.csproj') -c Release -r win-x64 --self-contained true '-p:PublishProfile=Portable' '-p:DebugType=none' '-p:DebugSymbols=false' "-p:IncludeGrannyRuntime=$($IncludeGrannyRuntime.IsPresent.ToString().ToLowerInvariant())" "-p:BaseOutputPath=$destination/build/" @versionArgs -o $package
 if ($LASTEXITCODE -ne 0) { throw 'Publish failed; no ZIP was created.' }
 Copy-Item -LiteralPath (Join-Path $repo 'docs/TESTER-README.txt') -Destination (Join-Path $package 'README.txt')
 Copy-Item -LiteralPath (Join-Path $repo 'vendor/lslib/LICENSE') -Destination (Join-Path $package 'LSLib-LICENSE.txt')
@@ -40,7 +48,7 @@ foreach ($framework in $assets.project.frameworks.PSObject.Properties.Value) {
     }
 }
 $notices.ToString() | Set-Content (Join-Path $package 'THIRD-PARTY-NOTICES.txt') -Encoding utf8
-$zip = Join-Path $destination 'Reimagined-Level-Editor-win-x64.zip'
+$zip = Join-Path $destination "Reimagined-Level-Editor$suffix-win-x64.zip"
 Compress-Archive -Path $package -DestinationPath $zip -CompressionLevel Optimal
 $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
 "$hash  $([IO.Path]::GetFileName($zip))" | Set-Content "$zip.sha256" -Encoding ascii
