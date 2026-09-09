@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.0 or 1.1.0-beta.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: level-editor-release
+  cancel-in-progress: false
+
+jobs:
+  build-release:
+    if: github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Validate release version and reject existing tags
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $release = ./.github/scripts/Resolve-ReleaseVersion.ps1 -Version $env:REQUESTED_VERSION
+          git show-ref --verify --quiet "refs/tags/$($release.Tag)"
+          if ($LASTEXITCODE -eq 0) { throw "Tag $($release.Tag) already exists. Releases are not overwritten." }
+          if ($LASTEXITCODE -ne 1) { throw 'Unable to check existing tags.' }
+          "version=$($release.Version)" >> $env:GITHUB_OUTPUT
+          "tag=$($release.Tag)" >> $env:GITHUB_OUTPUT
+          "prerelease=$($release.Prerelease.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          exit 0
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and test
+        run: |
+          ./.github/scripts/Test-ReleaseAutomation.ps1
+          dotnet build D2RLevelEditor.slnx -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+          dotnet run --project tests/D2RLevel.Tests -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
+
+      - name: Publish versioned portable package
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ./scripts/Publish-Portable.ps1 -Version $env:RELEASE_VERSION
+          New-Item -ItemType Directory -Path artifacts/release-assets -Force | Out-Null
+          $zip = @(Get-ChildItem artifacts/releases -Recurse -Filter "Reimagined-Level-Editor-v$env:RELEASE_VERSION-win-x64.zip")
+          if ($zip.Count -ne 1) { throw 'Expected exactly one versioned ZIP.' }
+          Copy-Item -LiteralPath $zip[0].FullName -Destination artifacts/release-assets
+          Copy-Item -LiteralPath ($zip[0].FullName + '.sha256') -Destination artifacts/release-assets
+
+      - name: Generate semantic release notes
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: ./.github/scripts/Generate-ReleaseNotes.ps1 -CurrentTag $env:RELEASE_TAG -TargetRef $env:GITHUB_SHA -OutputPath artifacts/release-notes.md
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Reimagined-Level-Editor-${{ steps.version.outputs.tag }}-win-x64
+          path: |
+            artifacts/release-assets/*
+            artifacts/release-notes.md
+          if-no-files-found: error
+
+      - name: Tag tested commit and publish release
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a $env:RELEASE_TAG $env:GITHUB_SHA -m "chore(release): $env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw 'Tag creation failed.' }
+          git push origin "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw 'Tag push failed; no release was published.' }
+          $assets = @(Get-ChildItem artifacts/release-assets -File | ForEach-Object FullName)
+          $args = @('release', 'create', $env:RELEASE_TAG, '--verify-tag', '--title', "Reimagined Level Editor $env:RELEASE_TAG", '--notes-file', 'artifacts/release-notes.md')
+          if ($env:IS_PRERELEASE -eq 'true') { $args += @('--prerelease', '--latest=false') }
+          & gh @args @assets
+          if ($LASTEXITCODE -ne 0) { throw 'Release creation/upload failed. Inspect the tag and any draft release before retrying; do not overwrite a published release.' }
