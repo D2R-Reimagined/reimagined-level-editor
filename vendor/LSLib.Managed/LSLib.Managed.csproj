@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CS8981;CS8509;CS0168;CS0649;CS0169;CS0414</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../lslib/LSLib/Granny/**/*.cs" />
+    <Compile Include="../lslib/LSLib/LS/Common.cs" />
+    <Compile Include="../lslib/LSLib/LS/FileManager.cs" />
+    <Compile Include="../lslib/LSLib/LS/Enums/*.cs" />
+    <PackageReference Include="OpenTK.Mathematics" Version="4.9.4" />
+    <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.3" />
+  </ItemGroup>
+</Project>

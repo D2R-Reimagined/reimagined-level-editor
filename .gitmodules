@@ -1,0 +1,3 @@
+[submodule "vendor/lslib"]
+	path = vendor/lslib
+	url = https://github.com/Norbyte/lslib.git

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../D2RLevel.Core/D2RLevel.Core.csproj" />
+    <ProjectReference Include="../../vendor/LSLib.Managed/LSLib.Managed.csproj" />
+    <PackageReference Include="BCnEncoder.Net" Version="2.3.0" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/D2RLevel.App/D2RLevel.App.csproj" />
+    <Project Path="src/D2RLevel.Assets/D2RLevel.Assets.csproj" />
+    <Project Path="src/D2RLevel.Core/D2RLevel.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/D2RLevel.Tests/D2RLevel.Tests.csproj" />
+  </Folder>
+  <Folder Name="/vendor/">
+    <Project Path="vendor/LSLib.Managed/LSLib.Managed.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/D2RLevel.Assets/D2RLevel.Assets.csproj" /></ItemGroup>
+</Project>

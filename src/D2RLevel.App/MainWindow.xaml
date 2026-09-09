@@ -1,0 +1,148 @@
+<Window x:Class="D2RLevel.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:D2RLevel.App"
+  Title="Reimagined Level Editor" Icon="Assets/ReimaginedLevelEditor.ico" Width="1500" Height="930" MinWidth="1100" MinHeight="700" Background="#141B23" Foreground="#E6EDF4">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="#202833" Padding="12,8">
+      <StackPanel>
+        <DockPanel>
+          <TextBlock Text="REIMAGINED LEVEL EDITOR" FontWeight="Bold" FontSize="18" VerticalAlignment="Center" Margin="4,0,24,0"/>
+          <WrapPanel x:Name="Toolbar" Orientation="Horizontal">
+            <Button Content="Load Workspace…" Click="LoadWorkspace_Click"/>
+            <Button x:Name="WorkspaceExplorerButton" Content="Workspace Explorer" Click="WorkspaceExplorer_Click" IsEnabled="False"/>
+            <Button x:Name="SaveSceneButton" Content="Save Scene" Click="SaveScene_Click" IsEnabled="False"/>
+            <Button Content="Open preset…" Click="Open_Click"/><Button Content="Asset folder…" Click="Root_Click"/>
+            <Button Content="Reload assets" Click="Reload_Click"/>
+            <Button x:Name="SaveCopyButton" Content="Save copy…" Click="Save_Click"/><Button Content="Missing assets…" Click="Audit_Click"/>
+            <Button x:Name="UndoButton" Content="Undo" Click="Undo_Click"/><Button x:Name="RedoButton" Content="Redo" Click="Redo_Click"/>
+            <Button Content="Model explorer…" Click="Models_Click"/><Button Content="DS1 workspace…" Click="Floors_Click"/>
+            <CheckBox x:Name="ShowTerrain" Content="Terrain" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Terrain_Click" ToolTip="Show terrain meshes with a paired-DS1 floor reference where available. Approximate registration; not full HD biome shading."/>
+            <Button Content="Focus area" Click="FocusArea_Click" ToolTip="Select a prop first. Preview a nearby working area; Home shows the whole map again."/>
+            <CheckBox x:Name="FullDetail" Content="Full detail (slower)" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Detail_Click" ToolTip="Balanced uses LOD2, or LOD4 for very large presets, and 512px texture mips. Changing reloads the preview only."/>
+          </WrapPanel>
+        </DockPanel>
+        <TextBlock x:Name="PathLabel" Text="Open an extracted HD preset JSON to begin." Foreground="#9AAFC4" Margin="4,8,4,0" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="DecoderNotice" Text="Model decoder unavailable — restore Native/granny2.dll from the application package and restart." Foreground="#FFD28A" Margin="4,6,4,0" TextWrapping="Wrap"/>
+      </StackPanel>
+    </Border>
+    <Border DockPanel.Dock="Bottom" Background="#202833" Padding="12,6">
+      <DockPanel><Button x:Name="CancelButton" DockPanel.Dock="Right" Content="Cancel load" Visibility="Collapsed" Click="Cancel_Click"/>
+        <TextBlock x:Name="Status" Text="Ready · HD placement and DS1 gameplay workspace" VerticalAlignment="Center" TextWrapping="Wrap"/>
+      </DockPanel>
+    </Border>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="265"/><ColumnDefinition Width="5"/><ColumnDefinition Width="*"/><ColumnDefinition Width="5"/><ColumnDefinition Width="310"/></Grid.ColumnDefinitions>
+      <Border Grid.Column="0" Background="#202833" Padding="10">
+        <Grid>
+        <DockPanel x:Name="WorkspaceBrowser" Visibility="Collapsed">
+          <TextBlock DockPanel.Dock="Top" Text="WORKSPACE SCENES" FontWeight="Bold" Margin="4,8"/>
+          <ComboBox x:Name="RecentWorkspaces" DockPanel.Dock="Top" SelectionChanged="RecentWorkspaces_SelectionChanged" ToolTip="Recently opened workspaces">
+            <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Foreground="Black" TextTrimming="CharacterEllipsis" ToolTip="{Binding}"/></DataTemplate></ComboBox.ItemTemplate>
+          </ComboBox>
+          <TextBox x:Name="WorkspaceSearch" DockPanel.Dock="Top" TextChanged="WorkspaceSearch_Changed" ToolTip="Filter scenes by relative path"/>
+          <TextBlock x:Name="WorkspaceCount" DockPanel.Dock="Bottom" Foreground="#9AAFC4" Margin="4,8" TextWrapping="Wrap"/>
+          <ListBox x:Name="WorkspaceScenes" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="WorkspaceScenes_SelectionChanged" VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.Template>
+              <ControlTemplate TargetType="ListBox">
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                  <ScrollViewer Focusable="False" CanContentScroll="True">
+                    <ItemsPresenter/>
+                  </ScrollViewer>
+                </Border>
+              </ControlTemplate>
+            </ListBox.Template>
+            <ListBox.ItemContainerStyle>
+              <Style TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                      <Border x:Name="Row" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" Padding="2">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                      </Border>
+                      <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Row" Property="Background" Value="#29394A"/></Trigger>
+                        <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="#354456"/></Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Row" Property="BorderBrush" Value="#8BD2D4"/></Trigger>
+                      </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+              </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="Wrap" Padding="4,7" ToolTip="{Binding JsonPath}"/></DataTemplate></ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+        <DockPanel x:Name="EntityBrowser">
+          <TextBlock DockPanel.Dock="Top" Text="SCENE ENTITIES" FontWeight="Bold" Margin="4,8"/>
+          <TextBox x:Name="Search" DockPanel.Dock="Top" ToolTip="Filter names and model paths" TextChanged="Search_Changed"/>
+          <TextBlock x:Name="EntityCount" DockPanel.Dock="Bottom" Foreground="#9AAFC4" Margin="4,8"/>
+          <ListBox x:Name="Hierarchy" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">
+            <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Padding="4,5" ToolTip="{Binding PreviewModel}"/></DataTemplate></ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+        </Grid>
+      </Border>
+      <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#111821"/>
+      <Border x:Name="WorkspaceLanding" Grid.Column="2" Grid.ColumnSpan="3" Visibility="Collapsed" Margin="28" Padding="28" Background="#202833" VerticalAlignment="Top">
+        <StackPanel>
+          <TextBlock Text="Workspace Explorer" FontSize="26" Margin="0,0,0,16"/>
+          <TextBlock Text="Choose a scene on the left to open its preset and DS1 together." TextWrapping="Wrap" FontSize="16" Margin="0,0,0,12"/>
+          <TextBlock Text="Save Scene writes both maps and their links back to this workspace. Your asset folder stays independent." TextWrapping="Wrap" Foreground="#9AAFC4"/>
+        </StackPanel>
+      </Border>
+      <Grid Grid.Column="2" x:Name="ScenePanel">
+        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="150"/></Grid.RowDefinitions>
+        <local:SceneViewport x:Name="Scene"/>
+        <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12" Background="#D9202833" Padding="10" IsHitTestVisible="False">
+          <StackPanel><TextBlock Text="HD PRESET PREVIEW" FontWeight="Bold"/>
+            <TextBlock Text="Right drag: look · Wheel: move forward/back · Middle drag: pan" Foreground="#A9BED2" Margin="0,4,0,0"/>
+            <TextBlock Text="Alt + right drag: orbit selection · Shift: faster travel · Ctrl: finer travel" Foreground="#A9BED2"/>
+            <TextBlock Text="Left drag: move model · Esc: cancel drag · F: frame selected · Home: frame all" Foreground="#A9BED2"/>
+          </StackPanel>
+        </Border>
+        <Border Grid.Row="1" Background="#18212B" Padding="10">
+          <DockPanel><TextBlock DockPanel.Dock="Top" Text="ASSET DIAGNOSTICS" FontWeight="Bold" Margin="0,0,0,6"/>
+            <TextBox x:Name="Diagnostics" IsReadOnly="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" BorderThickness="0" FontFamily="Consolas" FontSize="11"/>
+          </DockPanel>
+        </Border>
+      </Grid>
+      <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="#111821"/>
+      <Border Grid.Column="4" x:Name="InspectorPanel" Background="#202833" Padding="12">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <local:Ds1InspectorPreview x:Name="Ds1Preview" Margin="0,0,0,14"/>
+            <TextBlock x:Name="LinkStatus" TextWrapping="Wrap" Foreground="#E4BA74" Margin="0,4"/>
+            <WrapPanel>
+              <Button x:Name="ToggleLinkButton" Content="Link in DS1…" Click="ToggleLink_Click" IsEnabled="False"/>
+              <Button x:Name="EditCollisionButton" Content="Add collision…" Click="EditCollision_Click" IsEnabled="False"/>
+              <Button x:Name="AlignUnitButton" Content="Align linked unit to HD" Click="AlignUnit_Click" Visibility="Collapsed"/>
+              <Button x:Name="SavePairButton" Content="Save linked pair…" Click="SavePair_Click"/>
+              <Button Content="Reset invalid links…" x:Name="ResetLinksButton" Visibility="Collapsed" Click="ResetLinks_Click"/>
+            </WrapPanel>
+            <TextBlock Text="INSPECTOR" FontWeight="Bold" Margin="0,8"/>
+            <TextBlock x:Name="SelectedName" Text="Select an entity" FontSize="18" TextWrapping="Wrap"/>
+            <TextBlock x:Name="SelectedInfo" Foreground="#9AAFC4" TextWrapping="Wrap" Margin="0,6"/>
+            <TextBlock x:Name="ModelLabel" TextWrapping="Wrap" FontSize="11" Foreground="#9AAFC4"/>
+            <StackPanel x:Name="TransformPanel" IsEnabled="False">
+              <GroupBox Header="Position · native D2R coordinates"><UniformGrid Columns="3">
+                <StackPanel><TextBlock Text="X"/><TextBox x:Name="PX"/></StackPanel><StackPanel><TextBlock Text="Y (up)"/><TextBox x:Name="PY"/></StackPanel><StackPanel><TextBlock Text="Z"/><TextBox x:Name="PZ"/></StackPanel>
+              </UniformGrid></GroupBox>
+              <GroupBox Header="Orientation · quaternion"><UniformGrid Columns="2">
+                <StackPanel><TextBlock Text="X"/><TextBox x:Name="QX"/></StackPanel><StackPanel><TextBlock Text="Y"/><TextBox x:Name="QY"/></StackPanel><StackPanel><TextBlock Text="Z"/><TextBox x:Name="QZ"/></StackPanel><StackPanel><TextBlock Text="W"/><TextBox x:Name="QW"/></StackPanel>
+              </UniformGrid></GroupBox>
+              <GroupBox Header="Scale"><UniformGrid Columns="3">
+                <StackPanel><TextBlock Text="X"/><TextBox x:Name="SX"/></StackPanel><StackPanel><TextBlock Text="Y"/><TextBox x:Name="SY"/></StackPanel><StackPanel><TextBlock Text="Z"/><TextBox x:Name="SZ"/></StackPanel>
+              </UniformGrid></GroupBox>
+              <Button Content="Apply transform" Click="Apply_Click" Margin="0,12,0,4" Background="#28686C"/>
+              <UniformGrid Columns="2"><Button Content="X − 1" Tag="x-" Click="Nudge_Click"/><Button Content="X + 1" Tag="x+" Click="Nudge_Click"/><Button Content="Z − 1" Tag="z-" Click="Nudge_Click"/><Button Content="Z + 1" Tag="z+" Click="Nudge_Click"/></UniformGrid>
+              <Button Content="Rotate Y + 15°" Click="Rotate_Click"/>
+            </StackPanel>
+            <Button Content="Frame selected" Click="Frame_Click"/>
+            <Button x:Name="DeleteModelButton" Content="Delete object" Click="DeleteModel_Click" ToolTip="Delete this model, its linked DS1 unit and owned collision. Shared collision stays. Undo restores everything."/>
+            <TextBlock Text="Linked models move their assigned DS1 unit or collision footprint. Unlinked models change HD visuals only. Warps and DT1 collision are not moved." Foreground="#D9B580" TextWrapping="Wrap" Margin="0,12"/>
+            <Expander Header="Preserved entity JSON" Foreground="#C7D6E5"><TextBox x:Name="RawJson" IsReadOnly="True" FontFamily="Consolas" FontSize="11" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/></Expander>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>

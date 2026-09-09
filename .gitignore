@@ -1,0 +1,43 @@
+**/bin/
+**/obj/
+.vs/
+artifacts/
+*.user
+*.bak
+*.rle-links.json
+
+# IDE and user-specific configuration
+**/.idea/
+**/.vs/
+.vscode/
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Only the documented bundled decoder is tracked here
+src/D2RLevel.App/Native/*.dll
+!src/D2RLevel.App/Native/granny2.dll
+
+# Local configuration, credentials and diagnostic output
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.key
+*.log
+*.dmp
+*.tmp
+TestResults/
+.validation/
+
+# Extracted game assets and local exports
+/data/
+/base-files/
+*.ds1
+*.dt1
+*.model
+*.texture
+*.physics
+*.skeleton
+*.mpq

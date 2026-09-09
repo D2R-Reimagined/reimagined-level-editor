@@ -1,0 +1,11 @@
+Granny runtime: granny2.dll (64-bit)
+
+Third-party proprietary software by RAD Game Tools.
+Provenance of the bundled runtime:
+https://github.com/pairofdocs/Unity-D2R-Scene-Editor/blob/master/libs/granny2.dll
+SHA-256: 93E29135AF0F8CB08A9CF95BAD69F7B6A13ACEE82D689D1086312FE1135F2AF6
+
+This notice does not grant a license to the runtime. Redistribution rights
+for this binary have not been established. Confirm appropriate rights before
+distributing packages containing it to consumers.
+Vendor licensing: https://www.radgametools.com/sales.htm
