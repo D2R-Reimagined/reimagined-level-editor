@@ -20,6 +20,7 @@ public sealed class SceneViewport : Grid
     private readonly Dictionary<int, ModelVisual3D> visuals = new();
     private readonly HashSet<int> placeholders = new();
     private readonly ModelVisual3D selection = new();
+    private readonly ModelVisual3D overlay = new();
     private readonly Dictionary<GeometryModel3D, SceneBatch> batchHits = new();
     private readonly Dictionary<SceneBatch, ModelVisual3D> batchVisuals = new();
     private readonly Dictionary<int, List<SceneBatch>> entityBatches = new();
@@ -120,10 +121,10 @@ public sealed class SceneViewport : Grid
     internal bool BeginDrag(PresetEntity entity, Point point)
     {
         CancelDrag();
-        if (!AllowModelDragging || !entity.CanTransform || entity.HasParent || !visuals.ContainsKey(entity.Index) ||
+        if (!AllowModelDragging || !entity.CanTransform || entity.HasParent || IsLocked(entity) || !visuals.ContainsKey(entity.Index) ||
             GroundPoint(point, entity.Transform.Position.Y) is not { } anchor) return false;
         var members = selectedMembers.Contains(entity) ? selectedMembers : [entity];
-        if (members.Length > 1 && members.Any(e => !GroupMovement.CanGroup(e) || !visuals.ContainsKey(e.Index))) return false;
+        if (members.Length > 1 && members.Any(e => !GroupMovement.CanGroup(e) || IsLocked(e) || !visuals.ContainsKey(e.Index))) return false;
         dragMembers = members.ToDictionary(e => e, e => e.Transform);
         dragEntity = entity; dragStart = dragValue = entity.Transform; dragAnchor = anchor; dragPointer = point;
         return true;
@@ -278,8 +279,9 @@ public sealed class SceneViewport : Grid
                     list.Add(batch);
                 }
             }
-        selection.Content = null;
+        selection.Content = null; overlay.Content = null;
         viewport.Children.Add(selection);
+        viewport.Children.Add(overlay);
         SetTerrainVisible(terrainVisible);
         FrameAll();
     }
@@ -328,6 +330,18 @@ public sealed class SceneViewport : Grid
             if (visuals.TryGetValue(member.Index, out var visual)) bounds.Union(visual.Transform.TransformBounds(visual.Content.Bounds));
         if (!bounds.IsEmpty) Frame(bounds);
     }
+    /// <summary>
+    /// World-space extent of the scene's terrain meshes, used to measure the HD-to-DS1
+    /// scale. Empty when the scene has no decoded terrain to measure.
+    /// </summary>
+    public Rect3D TerrainBounds()
+    {
+        var bounds = Rect3D.Empty;
+        foreach (var (visual, entity) in entities)
+            if (entity.IsTerrain && !placeholders.Contains(entity.Index) && visual.Content is not null)
+                bounds.Union(visual.Transform.TransformBounds(visual.Content.Bounds));
+        return bounds;
+    }
     public ModelFootprint? GetFootprint(PresetEntity entity)
     {
         if (placeholders.Contains(entity.Index) || !visuals.TryGetValue(entity.Index, out var visual)) return null;
@@ -352,6 +366,15 @@ public sealed class SceneViewport : Grid
         modeLabel.Text = "LOCAL EDITING AREA · about 80 units around focus · Home restores the whole map";
         UpdateCamera();
         return true;
+    }
+    /// <summary>Points the camera at a world position from a fixed distance.</summary>
+    internal void FocusOn(double x, double z, double distanceFromTarget)
+    {
+        workRadius = null; modeLabel.Text = "";
+        target = new(x, 0, z);
+        distance = Math.Max(0.02, distanceFromTarget);
+        travelStep = Math.Clamp(distance * 0.06, 0.02, 20);
+        UpdateCamera();
     }
     private void Frame(Rect3D bounds)
     {
@@ -433,14 +456,22 @@ public sealed class SceneViewport : Grid
         PresetEntity? picked = null;
         VisualTreeHelper.HitTest(viewport, null, result =>
         {
+            PresetEntity? hit = null;
             if (result is RayMeshGeometry3DHitTestResult batched && batched.ModelHit is GeometryModel3D model && batchHits.TryGetValue(model, out var batch))
-            { picked = batch.EntityAt(batched.VertexIndex1); return HitTestResultBehavior.Stop; }
-            if (result is RayMeshGeometry3DHitTestResult mesh && mesh.VisualHit is ModelVisual3D visual && entities.TryGetValue(visual, out var entity))
-            { picked = entity; return HitTestResultBehavior.Stop; }
-            return HitTestResultBehavior.Continue;
+                hit = batch.EntityAt(batched.VertexIndex1);
+            else if (result is RayMeshGeometry3DHitTestResult mesh && mesh.VisualHit is ModelVisual3D visual && entities.TryGetValue(visual, out var entity))
+                hit = entity;
+            // Locked terrain is not a click target, so the ray carries on to whatever
+            // stands on it rather than selecting the ground the prop sits on.
+            if (hit is null || IsLocked(hit)) return HitTestResultBehavior.Continue;
+            picked = hit; return HitTestResultBehavior.Stop;
         }, new PointHitTestParameters(point));
         return picked;
     }
+
+    /// <summary>Terrain cannot be picked or dragged while it is locked.</summary>
+    public bool TerrainLocked { get; set; } = true;
+    public bool IsLocked(PresetEntity entity) => TerrainLocked && entity.IsTerrain;
     private void Move(object sender, MouseEventArgs e)
     {
         if (!IsMouseCaptured) return;
@@ -491,6 +522,68 @@ public sealed class SceneViewport : Grid
         yaw = Math.Atan2(offset.X, offset.Z);
         pitch = Math.Asin(Math.Clamp(offset.Y / distance, -1, 1));
         UpdateCamera();
+    }
+
+    /// <summary>
+    /// Draws a patrol route from the unit's position through its points. Purely an
+    /// annotation: it holds no entity and is never written to either document.
+    /// </summary>
+    /// <summary>
+    /// Shows a live-updating model that is not backed by a preset entity, such as the
+    /// model explorer's skinned character. It is not pickable and not part of the scene.
+    /// </summary>
+    public void AddAnimated(Model3DGroup model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        viewport.Children.Add(new ModelVisual3D { Content = model });
+        var bounds = model.Bounds;
+        if (!bounds.IsEmpty) Frame(bounds);
+    }
+
+    internal bool HasPathOverlay => overlay.Content is not null;
+    public void SetPathOverlay(IReadOnlyList<Point3D> nodes, int highlighted = -1)
+    {
+        if (nodes.Count < 1) { overlay.Content = null; return; }
+        double span = 0;
+        for (int i = 1; i < nodes.Count; i++) span += (nodes[i] - nodes[i - 1]).Length;
+        double thickness = Math.Clamp(span / Math.Max(1, nodes.Count) * 0.03, 0.05, 1.5);
+        var group = new Model3DGroup();
+        var line = new MeshGeometry3D();
+        for (int i = 1; i < nodes.Count; i++) AddTube(line, nodes[i - 1], nodes[i], thickness);
+        if (line.Positions.Count > 0)
+        {
+            var material = new EmissiveMaterial(new SolidColorBrush(Color.FromRgb(255, 214, 102)));
+            material.Freeze();
+            group.Children.Add(new GeometryModel3D(line, material) { BackMaterial = material });
+        }
+        for (int i = 1; i < nodes.Count; i++)
+        {
+            var color = i == highlighted + 1 ? Colors.Gold : Color.FromRgb(255, 255, 255);
+            var node = new DiffuseMaterial(new SolidColorBrush(color)); node.Freeze();
+            double r = thickness * (i == highlighted + 1 ? 4 : 2.5);
+            group.Children.Add(Box(new Rect3D(nodes[i].X - r, nodes[i].Y - r, nodes[i].Z - r, r * 2, r * 2, r * 2), node));
+        }
+        group.Freeze(); overlay.Content = group;
+    }
+
+    // A rectangular tube along the segment, so the route reads from any camera angle.
+    private static void AddTube(MeshGeometry3D mesh, Point3D a, Point3D b, double t)
+    {
+        var direction = b - a;
+        if (direction.LengthSquared <= 0) return;
+        direction.Normalize();
+        var reference = Math.Abs(direction.Y) > 0.9 ? new Vector3D(1, 0, 0) : new Vector3D(0, 1, 0);
+        var right = Vector3D.CrossProduct(direction, reference); right.Normalize(); right *= t;
+        var up = Vector3D.CrossProduct(right, direction); up.Normalize(); up *= t;
+        int start = mesh.Positions.Count;
+        foreach (var end in new[] { a, b })
+            foreach (var corner in new[] { -right - up, right - up, right + up, -right + up })
+                mesh.Positions.Add(end + corner);
+        foreach (int face in new[] { 0, 1, 2, 3 })
+        {
+            int n = (face + 1) % 4;
+            foreach (int index in new[] { face, face + 4, n + 4, face, n + 4, n }) mesh.TriangleIndices.Add(start + index);
+        }
     }
 
     public static Model3DGroup Placeholder()

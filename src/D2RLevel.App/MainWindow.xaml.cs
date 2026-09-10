@@ -40,6 +40,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         Ds1Preview.ScaleChanged += () => { Scene.CancelDrag(); RefreshNpcs(); };
         Ds1Preview.OpenRequested += () => Floors_Click(this, new());
+        Ds1Preview.CalibrateRequested += Calibrate_Click;
         settings = EditorSettings.Load(SettingsPath, out settingsReadWarning);
         InitializeWindowPlacement();
         FullDetail.IsChecked = args.Contains("--full-detail");
@@ -100,6 +101,7 @@ public partial class MainWindow : Window
                 { await VerifyWorkspace(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--group-smoke")) { await VerifyGroups(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--npc-smoke")) { await VerifyNpcs(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--animation-smoke")) { await VerifyAnimation(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--links-smoke")) { await VerifyLinkedWorkspace(output); Application.Current.Shutdown(0); return; }
                 if (document is null) throw new InvalidOperationException("Smoke test requires a loaded preset.");
                 string orbitMetrics = arguments.Contains("--benchmark") ? await Scene.MeasureOrbit() : "";
@@ -150,6 +152,7 @@ public partial class MainWindow : Window
                     var beforeTerrain = document.Serialize();
                     Scene.FrameAll();
                     File.AppendAllText(Path.Combine(output, "smoke.txt"), "\n" + Scene.VerifyTerrainVisibility());
+                    File.AppendAllText(Path.Combine(output, "smoke.txt"), "\n" + VerifyTerrainLock());
                     if (!document.Serialize().SequenceEqual(beforeTerrain)) throw new InvalidOperationException("Terrain preview modified preset data.");
                     await Capture(this, "terrain-on.png");
                     ShowTerrain.IsChecked = false; Terrain_Click(this, new()); await Capture(this, "terrain-off.png");
@@ -368,6 +371,48 @@ public partial class MainWindow : Window
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => loading?.Cancel();
     private void Terrain_Click(object sender, RoutedEventArgs e) => Scene.SetTerrainVisible(ShowTerrain.IsChecked == true);
+    /// <summary>
+    /// Locked terrain must refuse both routes that can move it: the viewport drag and
+    /// the inspector transform. Unlocking must restore both.
+    /// </summary>
+    private string VerifyTerrainLock()
+    {
+        var terrain = document!.Entities.FirstOrDefault(e => e.IsTerrain && e.CanTransform && !e.HasParent)
+            ?? throw new InvalidOperationException("No transformable terrain in this scene.");
+        var prop = document.Entities.First(e => !e.IsTerrain && e.CanTransform && !e.HasParent && e.PreviewModel is not null);
+        var before = document.Serialize();
+        var centre = new Point(Scene.ActualWidth / 2, Scene.ActualHeight / 2);
+
+        LockTerrain.IsChecked = true; LockTerrain_Click(this, new());
+        if (Scene.BeginDrag(terrain, centre)) { Scene.CancelDrag(); throw new InvalidOperationException("Locked terrain still started a drag."); }
+        if (!Scene.IsLocked(terrain) || Scene.IsLocked(prop)) throw new InvalidOperationException("Lock applied to the wrong entities.");
+        bool refused = false;
+        try { Apply(terrain, terrain.Transform with { Position = terrain.Transform.Position with { X = terrain.Transform.Position.X + 5 } }); }
+        catch (InvalidOperationException) { refused = true; }
+        if (!refused) throw new InvalidOperationException("Locked terrain accepted an inspector transform.");
+        if (!document.Serialize().SequenceEqual(before)) throw new InvalidOperationException("A refused terrain move still changed the preset.");
+        Hierarchy.SelectedItem = terrain; RefreshState();
+        if (TransformPanel.IsEnabled) throw new InvalidOperationException("Transform panel stayed enabled for locked terrain.");
+
+        LockTerrain.IsChecked = false; LockTerrain_Click(this, new());
+        if (Scene.IsLocked(terrain)) throw new InvalidOperationException("Unlocking did not release terrain.");
+        if (!Scene.BeginDrag(terrain, centre)) throw new InvalidOperationException("Unlocked terrain could not be dragged.");
+        Scene.CancelDrag();
+        LockTerrain.IsChecked = true; LockTerrain_Click(this, new());
+        Hierarchy.SelectedItem = null; RefreshState();
+        if (!document.Serialize().SequenceEqual(before)) throw new InvalidOperationException("Lock verification changed the preset.");
+        return "PASS terrain lock: drag and inspector transform both refused while locked, both restored when unlocked, preset unchanged.";
+    }
+
+    private void LockTerrain_Click(object sender, RoutedEventArgs e)
+    {
+        Scene.CancelDrag();
+        Scene.TerrainLocked = LockTerrain.IsChecked == true;
+        Status.Text = Scene.TerrainLocked
+            ? "Terrain locked. Viewport clicks pass through it; select it in the entity list to inspect it."
+            : "Terrain unlocked. It can be clicked and dragged in the viewport again.";
+        RefreshState();
+    }
     private void Models_Click(object sender, RoutedEventArgs e)
     {
         if (resolver is null) { Status.Text = "Select the extracted asset folder first."; return; }
@@ -428,6 +473,7 @@ public partial class MainWindow : Window
     private void ShowDs1(LegacyFloorWindow window)
     {
         ds1Window = window; window.Owner = this;
+        window.SharedUnitsPerTile = () => Ds1Preview.UnitsPerTile;
         void RefreshPair()
         {
             pairedScene = window.FloorScene;
@@ -438,7 +484,12 @@ public partial class MainWindow : Window
         }
         RefreshPair();
         window.SceneChanged += RefreshPair;
-        window.UnitSelected += index => { if (!syncingNpcs && Selected?.GameplayUnitIndex != index) { Search.Text = ""; Hierarchy.SelectedItem = npcItems.FirstOrDefault(i => i.Entity.GameplayUnitIndex == index)?.Entity ?? Selected; } };
+        window.UnitSelected += index =>
+        {
+            if (!syncingNpcs && Selected?.GameplayUnitIndex != index) { Search.Text = ""; Hierarchy.SelectedItem = npcItems.FirstOrDefault(i => i.Entity.GameplayUnitIndex == index)?.Entity ?? Selected; }
+            RefreshPathOverlay();
+        };
+        window.PathChanged += () => { RefreshNpcs(); RefreshPathOverlay(); RefreshState(); };
         window.Closed += (_, _) => ds1Window = null;
         window.Activated += (_, _) => window.UpdateHdFootprint(Selected is { } current ? Scene.GetFootprint(current) : null);
         window.LinkUnitRequested += (index, scale) =>
@@ -476,6 +527,7 @@ public partial class MainWindow : Window
     private void PopulateInspector()
     {
         RefreshLinkStatus();
+        RefreshPathOverlay();
         Ds1Preview.Select(Selected);
         ds1Window?.UpdateHdFootprint(Selected is { } current ? Scene.GetFootprint(current) : null);
         ds1Window?.ConfigureLinkedCollision(placementLinks, Selected?.GameplayUnitIndex is null ? Selected : null);
@@ -484,7 +536,9 @@ public partial class MainWindow : Window
         SelectedInfo.Text = entity is null ? "" : entity.GameplayUnitIndex is { } npcIndex ? $"DS1 unit #{npcIndex} · gameplay placement" : $"ID {entity.Id}\n{entity.Components.Count} preserved components";
         ModelLabel.Text = entity?.GameplayUnitIndex is not null ? "DS1 character · static reference pose" : entity?.PreviewModel ?? "No static model";
         RawJson.Text = entity?.RawJson ?? "";
-        TransformPanel.IsEnabled = loading is null && entity?.CanTransform == true && !entity.HasParent && entity.GameplayUnitIndex is null;
+        TransformPanel.IsEnabled = loading is null && entity?.CanTransform == true && !entity.HasParent && entity.GameplayUnitIndex is null && !Scene.IsLocked(entity);
+        if (entity is not null && Scene.IsLocked(entity))
+            SelectedInfo.Text += "\nTerrain is locked. Untick Lock terrain to move it.";
         if (entity?.CanTransform != true) return;
         var t = entity.Transform;
         double[] values = [t.Position.X, t.Position.Y, t.Position.Z, t.Orientation.X, t.Orientation.Y, t.Orientation.Z, t.Orientation.W, t.Scale.X, t.Scale.Y, t.Scale.Z];
@@ -503,6 +557,8 @@ public partial class MainWindow : Window
     }
     private void Apply(PresetEntity entity, EntityTransform transform)
     {
+        if (Scene.IsLocked(entity))
+            throw new InvalidOperationException("Terrain is locked. Untick Lock terrain in the toolbar to move it.");
         if (SelectedEntities.Length > 1 && SelectedEntities.Contains(entity))
         {
             if (transform.Orientation != entity.Transform.Orientation || transform.Scale != entity.Transform.Scale)
@@ -571,7 +627,7 @@ public partial class MainWindow : Window
         bool busy = loading is not null;
         Scene.IsEnabled = !busy;
         DecoderNotice.Visibility = ModelReader.IsDecoderConfigured ? Visibility.Collapsed : Visibility.Visible;
-        Toolbar.IsEnabled = !busy; Hierarchy.IsEnabled = !busy; TransformPanel.IsEnabled = !busy && Selected?.CanTransform == true && !Selected.HasParent && Selected.GameplayUnitIndex is null;
+        Toolbar.IsEnabled = !busy; Hierarchy.IsEnabled = !busy; TransformPanel.IsEnabled = !busy && Selected?.CanTransform == true && !Selected.HasParent && Selected.GameplayUnitIndex is null && !Scene.IsLocked(Selected);
         UpdateGroupControls();
         CancelButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         UndoButton.IsEnabled = document?.CanUndo == true; RedoButton.IsEnabled = document?.CanRedo == true;

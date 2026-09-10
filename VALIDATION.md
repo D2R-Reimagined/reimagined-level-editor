@@ -16,10 +16,14 @@ dotnet run --project tests/D2RLevel.Tests -- --audit 'C:\maps\town.json' 'C:\ext
 dotnet run --project tests/D2RLevel.Tests -- --probe 'C:\assets\prop.model' 'C:\tools\granny2.dll'
 dotnet run --project tests/D2RLevel.Tests -- --texture 'C:\assets\prop_alb.texture'
 dotnet run --project tests/D2RLevel.Tests -- --legacy 'C:\maps\town.ds1' 'C:\extracted\data'
+dotnet run --project tests/D2RLevel.Tests -- --gameplay-audit 'C:\extracted\data\global\tiles'
+dotnet run --project tests/D2RLevel.Tests -- --animation-audit 'C:\extracted\data' 'C:\tools\granny2.dll'
 dotnet run --project src/D2RLevel.App -- --preset 'C:\maps\town.json' --data 'C:\extracted\data' --granny 'C:\tools\granny2.dll' --smoke-output 'C:\scratch\editor-check'
 ```
 
 Use a new output directory for each desktop smoke. Append `--features` for model explorer and DS1 interactions, or `--workspace-smoke --delete-smoke` for workspace discovery, saves, deletion and undo. Workspace checks require a preset and matching DS1 under their original game-relative paths; they copy maps beneath the output directory. Generated screenshots, settings and maps belong outside source control.
+
+`--animation-smoke` drives the model explorer's animation controls against a real character and captures its bind pose, an idle frame and a mid-stride frame; `--animated-model <data/...>` picks which character. `--gameplay-audit` walks every extracted DS1 and edits each patrol path in memory, checking the bytes revert exactly. `--animation-audit` loads every character rig and animation set, poses each mesh, and checks the result stays finite and near its bind silhouette — a character that collapses to a point or flies out of the world is a keyframe decode fault, and neither shows up as a non-finite value. Neither audit writes to its source files.
 
 ## Verification boundaries
 

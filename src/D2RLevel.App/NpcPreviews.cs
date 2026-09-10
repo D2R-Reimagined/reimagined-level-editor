@@ -83,7 +83,35 @@ public partial class MainWindow
         }
         finally { syncingNpcs = false; }
     }
-    private void Npcs_Click(object sender, RoutedEventArgs e) { Scene.CancelDrag(); RefreshNpcs(); }
+    private void Npcs_Click(object sender, RoutedEventArgs e) { Scene.CancelDrag(); RefreshNpcs(); RefreshPathOverlay(); }
+
+    /// <summary>
+    /// Shows the selected DS1 unit's patrol route in the HD view, at the same scale the
+    /// NPC previews use. Nothing here becomes an entity or reaches either document.
+    /// </summary>
+    private void RefreshPathOverlay()
+    {
+        if (ShowNpcs.IsChecked != true || pairedScene?.Collision is not { } collision
+            || SelectedUnitIndex is not { } index || collision.Document.GameplayWarning is not null)
+        { Scene.SetPathOverlay([]); return; }
+        var units = collision.Document.Units;
+        if (index < 0 || index >= units.Count) { Scene.SetPathOverlay([]); return; }
+        var points = collision.Document.PatrolPoints(index);
+        if (points.Count == 0) { Scene.SetPathOverlay([]); return; }
+        double perSubtile = Ds1Preview.UnitsPerTile / 5;
+        Point3D At(int sx, int sy)
+        {
+            double x = sx * perSubtile, z = sy * perSubtile;
+            return new(x, npcGround.Height(x, z) + Ds1Preview.UnitsPerTile * 0.12, z);
+        }
+        var nodes = points.Select(p => At(p.X, p.Y)).Prepend(At(units[index].X, units[index].Y)).ToArray();
+        Scene.SetPathOverlay(nodes, ds1Window?.SelectedPathPoint ?? -1);
+    }
+
+    /// <summary>The DS1 unit currently in focus, from either view.</summary>
+    private int? SelectedUnitIndex =>
+        Selected?.GameplayUnitIndex ?? (placementLinks is { Warning: null } links && Selected is { } entity
+            ? links.Find(entity)?.Unit?.Index : null) ?? ds1Window?.SelectedUnitIndex;
     private void MoveNpc(PresetEntity entity, EntityTransform transform)
     {
         if (pairedScene?.Collision is not { } collision || placementLinks is null) throw new InvalidOperationException("Load the paired DS1 first.");

@@ -19,6 +19,7 @@ public partial class MainWindow
         placementLinks = document is not null && ds1 is not null ? new(document, ds1) : null;
         if (workspaceSession is not null && placementLinks?.Warning is null) placementLinks?.ConnectWorkspace();
         if (document is not null) document.History.Changed += LinkedHistoryChanged;
+        InitializeCalibration();
         RefreshLinkStatus();
     }
     private void LinkedHistoryChanged(object? subject)
@@ -40,20 +41,33 @@ public partial class MainWindow
         if (LinkStatus is null) return;
         ResetLinksButton.Visibility = placementLinks?.Warning is not null ? Visibility.Visible : Visibility.Collapsed;
         LinkStatus.ToolTip = placementLinks?.SidecarPath;
-        var link = placementLinks?.Warning is null && Selected is { } entity ? placementLinks?.Find(entity) : null;
+        bool healthy = placementLinks?.Warning is null;
+        int broken = healthy ? placementLinks?.BrokenLinkCount ?? 0 : 0;
+        ReviewLinksButton.Visibility = broken > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ReviewLinksButton.Content = $"Review {broken} broken link{(broken == 1 ? "" : "s")}…";
+        var link = healthy && Selected is { } entity ? placementLinks?.Find(entity) : null;
+        string? brokenReason = healthy && Selected is { } selected ? placementLinks?.BrokenReason(selected) : null;
         ToggleLinkButton.Content = link is null ? "Link in DS1…" : "Unlink";
-        ToggleLinkButton.IsEnabled = loading is null && Selected is { CanTransform: true, HasParent: false, GameplayUnitIndex: null } && placementLinks?.Warning is null;
-        EditCollisionButton.IsEnabled = ToggleLinkButton.IsEnabled && placementLinks is not null;
+        ToggleLinkButton.IsEnabled = loading is null && Selected is { CanTransform: true, HasParent: false, GameplayUnitIndex: null } && healthy;
+        EditCollisionButton.IsEnabled = ToggleLinkButton.IsEnabled && placementLinks is not null && brokenReason is null;
         EditCollisionButton.Content = link?.Tiles.Length > 0 ? "Edit collision…" : "Add collision…";
         AlignUnitButton.Visibility = link?.Unit is not null ? Visibility.Visible : Visibility.Collapsed;
-        AlignUnitButton.IsEnabled = ToggleLinkButton.IsEnabled;
+        AlignUnitButton.IsEnabled = ToggleLinkButton.IsEnabled && brokenReason is null;
         if (Selected?.GameplayUnitIndex is not null) { LinkStatus.Text = "DS1 NPC preview. Drag to move its gameplay position and patrol. Save Scene or Save linked pair to save. Static reference pose; no animation."; return; }
         if (placementLinks?.Warning is { } warning) { LinkStatus.Text = warning; return; }
+        if (brokenReason is not null)
+        {
+            LinkStatus.Text = "This link is broken and is not moving anything.\n" + brokenReason +
+                "\nRestore what changed, or use Review broken links to discard it and link this object again. Other links are unaffected.";
+            return;
+        }
         LinkStatus.Text = placementLinks is null ? "Linking unavailable: " + pairedStatus :
             link is null ? "No DS1 link. Select a unit or suggest a footprint in DS1, then link it to this HD model." :
             (link.Unit is { } unit ? $"Linked to DS1 unit #{unit.Index} (ID {unit.Id}). Unit movement snaps to subtiles.\n" : "") +
             (link.Tiles.Length > 0 ? $"Collision: {link.Tiles.Length} owned tiles; shared tiles stay blocked for other owners. Collision snaps to whole tiles." : "No linked floor collision yet. Use Add collision to attach a footprint.") +
             $"\n{link.UnitsPerTile:G} HD units/tile · translation only. Save linked pair to preserve both maps and links.";
+        if (broken > 0)
+            LinkStatus.Text += $"\n{placementLinks!.Links.Count - broken} of {placementLinks.Links.Count} links intact; {broken} need attention.";
         if (placementLinks?.HasMetadataChanges == true) LinkStatus.Text += "\nLink changes have not been saved.";
         if (link?.Unit is { } linkedUnit && linkedDs1 is not null && Selected is { } model)
         {

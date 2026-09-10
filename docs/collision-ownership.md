@@ -29,7 +29,17 @@ The DS1 floor flag is one bit, with no model-owner identities. The HD model boun
 5. **Edit collision…** reopens the stored footprint at its current position. Removing draft cells releases only this object's contribution. **Remove collision link** removes the complete footprint while retaining its gameplay unit link. **Unlink** remains different: it leaves current map data in place and stops synchronized movement.
 6. **Save linked pair…** exports both documents and the local ownership sidecar. Reopening the exported JSON restores ownership, including overlaps and baselines.
 
-Unit coordinates round to whole subtiles; floor overrides round to whole tiles, using the original anchor to avoid accumulating rounding drift. The default is 10 HD units per tile, with configurable calibration. A combined link must use one common scale. Rotating/scaling still requires relinking; this work does not generate custom DT1 collision or move wall graphics, warps, terrain, or unrelated units.
+Unit coordinates round to whole subtiles; floor overrides round to whole tiles, using the original anchor to avoid accumulating rounding drift. Each link stores the HD-units-per-tile scale it was created with, so recalibrating the pair cannot move anything already placed; a combined link must use one common scale. Rotating/scaling still requires relinking; this work does not generate custom DT1 collision or move wall graphics, warps, terrain, or unrelated units.
+
+## When ownership can no longer be verified
+
+Every link is checked against the current documents: the HD object still exists with the same model and unchanged rotation/scale, the DS1 record still carries the expected type, ID, flags and position, and every owned cell still holds its floor override. A link that fails any of these was invalidated by something outside this workspace.
+
+Such a link is isolated, not fatal. It owns nothing: its cells stop being protected and become editable again, its DS1 record stops being reserved, and it refuses to move, align or reshape. Every other link continues to work normally, including shared ownership of cells the broken link used to co-own — the surviving owners keep those cells blocked through their own baselines.
+
+**Review broken links…** lists each one with its reason. Discarding drops only the editor's record: no floor bit, placement, patrol or HD entity changes, and the removal is a single undoable edit. Restoring whatever changed heals the link automatically on the next check, so discarding is a choice rather than the only exit.
+
+A structural mismatch is different and remains fatal for the whole sidecar. If the DS1's records, tile list or layer layout changed, every stored placement index may now refer to a different record; partially trusting those would be guesswork, so linking is disabled until the pair is restored or the links are reset.
 
 ## Verification
 

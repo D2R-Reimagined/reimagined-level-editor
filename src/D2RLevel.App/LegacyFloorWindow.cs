@@ -40,6 +40,7 @@ public sealed partial class LegacyFloorWindow : Window
         InitializeCollision(root);
         InitializeFootprint(root, footprint);
         InitializeGameplay(root);
+        InitializePaths(root);
         var note = new TextBlock { Text = "Collision tools edit the real DS1 whole-tile Unwalkable flag. Clearing overrides retains DT1 wall/floor blocking.\nRed: blocked subtiles · Orange: DS1 override · Purple: unresolved · Yellow outline: variant-dependent. Draft cyan: footprint · Draft magenta: shared ownership.\nLinked HD moves translate their unit and owned collision together on release. Other owners and protected blocking remain. Save linked pair to export both maps and ownership.", Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
         DockPanel.SetDock(note, Dock.Bottom); root.Children.Add(note);
         DockPanel.SetDock(inspector, Dock.Bottom); root.Children.Add(inspector);

@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: |
+          dotnet restore D2RLevelEditor.slnx
+          if ($LASTEXITCODE -ne 0) { throw 'Restore failed.' }
+
+      - name: Build
+        run: |
+          dotnet build D2RLevelEditor.slnx -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+
+      # The suite is an assertion runner, not a VSTest project: `dotnet test`
+      # reports success on it without executing a single check.
+      - name: Run editor checks
+        run: |
+          dotnet run --project tests/D2RLevel.Tests -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw 'Editor checks failed.' }
+
+      - name: Verify release automation scripts
+        run: ./.github/scripts/Test-ReleaseAutomation.ps1
+
+  # Packaging is slow and only breaks on build/publish plumbing changes, so it
+  # guards master rather than every pull request. Release still repackages.
+  package:
+    if: github.event_name == 'push'
+    needs: build-and-test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify portable packaging
+        run: |
+          ./scripts/Publish-Portable.ps1 -Version 0.0.0-ci
+          $zip = @(Get-ChildItem artifacts/releases -Recurse -Filter 'Reimagined-Level-Editor-v0.0.0-ci-win-x64.zip')
+          if ($zip.Count -ne 1) { throw 'Expected exactly one packaged ZIP.' }

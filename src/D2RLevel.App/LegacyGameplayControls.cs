@@ -30,7 +30,7 @@ public sealed partial class LegacyFloorWindow
         row.Children.Add(new TextBlock { Text = "Subtile X / Y", VerticalAlignment = VerticalAlignment.Center });
         row.Children.Add(unitX); row.Children.Add(unitY);
         var move = new Button { Content = "Move unit" }; row.Children.Add(move);
-        var link = new Button { Content = "Link unit to HD", ToolTip = "Select an HD model in the JSON view and a DS1 unit here. Uses the HD units/tile field below." }; row.Children.Add(link);
+        var link = new Button { Content = "Link unit to HD", ToolTip = "Select an HD model in the JSON view and a DS1 unit here. Uses this pair's grid calibration." }; row.Children.Add(link);
         linkUnitButton = link;
         link.Click += (_, _) =>
         {
@@ -38,9 +38,7 @@ public sealed partial class LegacyFloorWindow
             catch (Exception ex) { unitStatus.Text = ex.Message; }
         };
         DockPanel.SetDock(unitStatus, Dock.Top); root.Children.Add(unitStatus);
-        var label = new FrameworkElementFactory(typeof(TextBlock));
-        label.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding()); label.SetValue(TextBlock.ForegroundProperty, Brushes.Black);
-        unitList.ItemTemplate = new DataTemplate { VisualTree = label };
+        unitList.WithReadableItems();
         unitList.SelectionChanged += (_, _) => { if (!refreshingUnits) { ShowUnit(); Render(); UnitSelected?.Invoke(unitList.SelectedIndex); } };
         showUnits.Click += (_, _) => Render();
         move.Click += (_, _) =>
@@ -109,6 +107,7 @@ public sealed partial class LegacyFloorWindow
             dc.DrawEllipse(unit.Type == 1 ? Brushes.Cyan : unit.Type == 2 ? Brushes.LimeGreen : Brushes.Magenta,
                 new Pen(selected ? Brushes.White : Brushes.Black, radius / 2), point, selected ? radius * 1.4 : radius, selected ? radius * 1.4 : radius);
         }
+        DrawPathEditing(dc);
     }
     internal string VerifyGameplayEditing(string folder)
     {

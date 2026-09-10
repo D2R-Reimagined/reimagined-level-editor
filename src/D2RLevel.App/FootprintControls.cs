@@ -23,20 +23,32 @@ public sealed partial class LegacyFloorWindow
         refreshCollisionTools?.Invoke();
     }
     public void ReviewLinkedCollision() => reviewCollision?.Invoke();
-    private TextBox? linkScale;
-    private double LinkUnitsPerTile => double.Parse(linkScale?.Text ?? "10", CultureInfo.InvariantCulture);
+    // Both tools claim left-click on the map, so only one may be armed at a time.
+    private CheckBox? footprintDraw;
+    /// <summary>The pair's calibrated scale, supplied by the main window.</summary>
+    public Func<double>? SharedUnitsPerTile { get; set; }
+    /// <summary>
+    /// An existing link keeps the scale it was created with; anything new uses the pair's
+    /// calibration. This window no longer carries a second, independently editable value.
+    /// </summary>
+    private double LinkUnitsPerTile =>
+        (collisionLinks?.Warning is null && collisionEntity is not null ? collisionLinks?.Find(collisionEntity)?.UnitsPerTile : null)
+        ?? SharedUnitsPerTile?.Invoke() ?? GridCalibration.FallbackUnitsPerTile;
     public void UpdateHdFootprint(ModelFootprint? footprint) => updateFootprint?.Invoke(footprint);
     private void InitializeFootprint(DockPanel root, ModelFootprint? footprint)
     {
         var bar = new WrapPanel(); DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
-        var name = new TextBlock { Text = "HD selection: " + (footprint?.Name ?? "Select a rendered model") + " · HD units/tile", Margin = new Thickness(8) }; bar.Children.Add(name);
-        var units = new TextBox { Text = "10", Width = 50, Margin = new Thickness(6) }; bar.Children.Add(units);
-        linkScale = units;
+        var name = new TextBlock { Text = "HD selection: " + (footprint?.Name ?? "Select a rendered model"), Margin = new Thickness(8) }; bar.Children.Add(name);
+        var units = new TextBlock { Margin = new Thickness(6), VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brushes.LightSteelBlue, ToolTip = "Set in the main window's grid calibration. An existing link keeps the scale it was created with." };
+        bar.Children.Add(units);
+        void ShowScale() => units.Text = LinkUnitsPerTile.ToString("0.####", CultureInfo.InvariantCulture) + " HD units/tile";
+        ShowScale();
         var preview = new Button { Content = "Suggest model footprint" }; bar.Children.Add(preview);
         var apply = new Button { Content = "Apply suggested blocking", IsEnabled = false }; bar.Children.Add(apply);
         var link = new Button { Content = "Link footprint to HD", IsEnabled = false }; bar.Children.Add(link);
         var review = new Button { Content = "Edit linked collision", IsEnabled = false }; bar.Children.Add(review);
-        var edit = new CheckBox { Content = "Draw footprint", IsEnabled = CollisionDocument is not null, Foreground = Brushes.White, Margin = new Thickness(6),
+        var edit = footprintDraw = new CheckBox { Content = "Draw footprint", IsEnabled = CollisionDocument is not null, Foreground = Brushes.White, Margin = new Thickness(6),
             ToolTip = "Left-drag on the map to add or remove footprint tiles. Start on a selected tile to erase, or an empty tile to add. Nothing changes until Save collision link." }; bar.Children.Add(edit);
         var remove = new Button { Content = "Remove collision link", IsEnabled = false,
             ToolTip = "Remove only this model's collision contribution, preserving other owners and protected blocking. Its unit link stays attached. Undo restores it." }; bar.Children.Add(remove);
@@ -63,7 +75,7 @@ public sealed partial class LegacyFloorWindow
             var current = collisionLinks?.Warning is null && collisionEntity is not null ? collisionLinks?.Find(collisionEntity) : null;
             if (current?.Unit is { } linkedUnit && unitList.SelectedIndex != linkedUnit.Index) unitList.SelectedIndex = linkedUnit.Index;
             review.IsEnabled = remove.IsEnabled = current?.Tiles.Length > 0;
-            if (current is not null) units.Text = current.UnitsPerTile.ToString("G17", CultureInfo.InvariantCulture);
+            ShowScale();
             link.Content = current?.Tiles.Length > 0 ? "Save collision link" : "Link footprint to HD";
         };
         void DrawDraft()
@@ -127,7 +139,7 @@ public sealed partial class LegacyFloorWindow
             Dismiss(); footprint = next; preview.IsEnabled = next is not null;
             name.Text = "HD selection: " + (next?.Name ?? "Select a rendered model") + " · HD units/tile";
         };
-        clear.Click += (_, _) => Dismiss(); units.TextChanged += (_, _) => Dismiss();
+        clear.Click += (_, _) => Dismiss();
         CollisionViewChanged += Dismiss;
         Deactivated += (_, _) => Dismiss();
         PreviewKeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Escape) Dismiss(); };
@@ -140,8 +152,8 @@ public sealed partial class LegacyFloorWindow
             try
             {
                 var doc = CollisionDocument!;
-                double value = double.Parse(units.Text, CultureInfo.InvariantCulture);
-                suggestion = footprint.Tiles(doc.Width, doc.Height, value).Where(p => doc.CanBlock(p.X, p.Y)).ToArray();
+                ShowScale();
+                suggestion = footprint.Tiles(doc.Width, doc.Height, LinkUnitsPerTile).Where(p => doc.CanBlock(p.X, p.Y)).ToArray();
                 drafting = true; DrawDraft();
             }
             catch (Exception ex) { Dismiss(); collisionStatus.Text = ex.Message; }
@@ -188,7 +200,7 @@ public sealed partial class LegacyFloorWindow
         image.PreviewMouseLeftButtonUp += (_, e) =>
         { if (drawing) { DrawAt(e.GetPosition(image)); drawing = false; image.ReleaseMouseCapture(); e.Handled = true; } };
         image.LostMouseCapture += (_, _) => drawing = false;
-        edit.Checked += (_, _) => { if (!drafting) { drafting = true; DrawDraft(); } };
+        edit.Checked += (_, _) => { DisarmPathEditing(); if (!drafting) { drafting = true; DrawDraft(); } };
         verifyCollisionDraft = () =>
         {
             var doc = CollisionDocument!;

@@ -4,8 +4,19 @@ using LSLib.Granny.Model;
 
 namespace D2RLevel.Assets;
 
-public sealed record MeshPart(string Name, float[] Positions, float[] Normals, float[] UVs, int[] Indices, string? AlbedoPath);
-public sealed record ModelAsset(IReadOnlyList<MeshPart> Parts, IReadOnlyList<string>? TexturePaths = null);
+/// <summary>
+/// Per-vertex skin binding. <see cref="Indices"/> holds four slots per vertex that index
+/// <see cref="BoneNames"/> -- this mesh's own bone binding list -- not the skeleton's bone
+/// array, so a pose has to resolve them by name.
+/// </summary>
+public sealed record MeshSkin(int[] Indices, float[] Weights, string[] BoneNames);
+
+public sealed record MeshPart(string Name, float[] Positions, float[] Normals, float[] UVs, int[] Indices, string? AlbedoPath, MeshSkin? Skin = null);
+public sealed record ModelAsset(IReadOnlyList<MeshPart> Parts, IReadOnlyList<string>? TexturePaths = null)
+{
+    /// <summary>True when every part carries skin weights and can be posed.</summary>
+    public bool IsSkinned => Parts.Count > 0 && Parts.All(p => p.Skin is not null);
+}
 public sealed class MissingModelDecoderException : NotSupportedException
 {
     public MissingModelDecoderException() : base("Granny decoder is not configured. Choose Granny decoder… and select a 64-bit granny2.dll to render compressed models.") { }
@@ -45,6 +56,30 @@ public static class ModelReader
             var uvs = vertices.SelectMany(v => new[] { v.TextureCoordinates0.X, v.TextureCoordinates0.Y }).ToArray();
             if (positions.Concat(normals).Concat(uvs).Any(v => !float.IsFinite(v)))
                 throw new InvalidDataException($"Non-finite vertex data in {mesh.Name}.");
+            // Bone indices address this mesh's own binding list, so both travel together.
+            MeshSkin? skin = null;
+            var bindings = mesh.BoneBindings;
+            if (bindings is { Count: > 0 } && vertices[0].Format?.HasBoneWeights == true)
+            {
+                var boneNames = bindings.Select(b => b.BoneName ?? "").ToArray();
+                if (boneNames.Any(string.IsNullOrEmpty)) throw new InvalidDataException($"Unnamed bone binding in {mesh.Name}.");
+                var slots = new int[vertices.Count * 4];
+                var weights = new float[vertices.Count * 4];
+                for (int v = 0; v < vertices.Count; v++)
+                {
+                    float total = 0;
+                    for (int k = 0; k < 4; k++) total += vertices[v].BoneWeights[k];
+                    for (int k = 0; k < 4; k++)
+                    {
+                        int slot = vertices[v].BoneIndices[k];
+                        if (slot < 0 || slot >= boneNames.Length) throw new InvalidDataException($"Bone index outside the binding list in {mesh.Name}.");
+                        slots[v * 4 + k] = slot;
+                        // Granny stores weights as bytes; renormalize so a pose preserves volume.
+                        weights[v * 4 + k] = total > 0 ? vertices[v].BoneWeights[k] / total : k == 0 ? 1 : 0;
+                    }
+                }
+                skin = new(slots, weights, boneNames);
+            }
             var groups = topology.Groups is { Count: > 0 } ? topology.Groups :
                 [new TriTopologyGroup { MaterialIndex = 0, TriFirst = 0, TriCount = indices.Length / 3 }];
             foreach (var group in groups)
@@ -55,7 +90,7 @@ public static class ModelReader
                     throw new InvalidDataException("Invalid material triangle range.");
                 var material = group.MaterialIndex >= 0 && group.MaterialIndex < (mesh.MaterialBindings?.Count ?? 0)
                     ? mesh.MaterialBindings![group.MaterialIndex].Material : null;
-                parts.Add(new(mesh.Name, positions, normals, uvs, indices.AsSpan(start, count).ToArray(), Albedo(material)));
+                parts.Add(new(mesh.Name, positions, normals, uvs, indices.AsSpan(start, count).ToArray(), Albedo(material), skin));
             }
         }
         if (parts.Count == 0) throw new InvalidDataException("No renderable meshes found.");
@@ -123,6 +158,7 @@ public sealed class D2rMesh
     public TriTopology? PrimaryTopology;
     [Serialization(DataArea = true)]
     public List<MaterialBinding>? MaterialBindings;
+    public List<BoneBinding>? BoneBindings;
     [Serialization(Type = MemberType.VariantReference)]
     public D2rMeshData? ExtendedData;
 }

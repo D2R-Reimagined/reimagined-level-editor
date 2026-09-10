@@ -25,8 +25,11 @@ public partial class MainWindow
         if (arguments.Contains("--alignment-smoke"))
         {
             links.AlignUnitToHd(entity);
-            var actual = ds1.Units[links.Find(entity)!.Unit!.Index];
-            if (Math.Abs(actual.X - entity.Transform.Position.X / 2) > .5 || Math.Abs(actual.Y - entity.Transform.Position.Z / 2) > .5)
+            var aligned = links.Find(entity)!;
+            var actual = ds1.Units[aligned.Unit!.Index];
+            // Assert against the link's own scale, not a hardcoded 10 units/tile.
+            double perSubtile = aligned.UnitsPerTile / 5;
+            if (Math.Abs(actual.X - entity.Transform.Position.X / perSubtile) > .5 || Math.Abs(actual.Y - entity.Transform.Position.Z / perSubtile) > .5)
                 throw new InvalidOperationException("Wagon unit alignment does not match HD origin.");
         }
         string collisionResult = arguments.Contains("--collision-smoke") ? window.VerifyOwnedCollisionEditing() : "";

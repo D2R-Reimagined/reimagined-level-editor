@@ -65,19 +65,13 @@ public static class SceneLoader
                                 cached = material;
                                 try
                                 {
-                                    var pixels = TextureReader.Load(resolve?.Invoke(albedo, false) ?? resolver.Resolve(albedo), fullDetail ? 1024 : 512);
-                                    textureBytes += pixels.Rgba.Length;
-                                    // WPF's Bgra32 format needs a red/blue swap.
-                                    for (int i = 0; i < pixels.Rgba.Length; i += 4)
-                                        (pixels.Rgba[i], pixels.Rgba[i + 2]) = (pixels.Rgba[i + 2], pixels.Rgba[i]);
-                                    var bitmap = BitmapSource.Create(pixels.Width, pixels.Height, 96, 96, PixelFormats.Bgra32, null, pixels.Rgba, pixels.Width * 4);
-                                    bitmap.Freeze();
-                                    var brush = new ImageBrush(bitmap) { TileMode = TileMode.Tile, ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, 1, 1) };
-                                    cached = new DiffuseMaterial(brush);
+                                    cached = PreviewMaterials.FromTexture(resolve?.Invoke(albedo, false) ?? resolver.Resolve(albedo),
+                                        fullDetail ? 1024 : 512, out int decoded);
+                                    textureBytes += decoded;
                                 }
                                 catch (Exception ex) when (ex is not OperationCanceledException)
                                 { messages.Add($"Texture {albedo}: {ex.Message}"); }
-                                cached.Freeze(); textures[albedo] = cached;
+                                textures[albedo] = cached;
                             }
                             material = cached;
                         }

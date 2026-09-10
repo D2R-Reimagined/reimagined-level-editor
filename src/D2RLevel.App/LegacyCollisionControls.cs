@@ -24,10 +24,7 @@ public sealed partial class LegacyFloorWindow
 
     private void InitializeCollision(DockPanel root)
     {
-        var toolLabel = new FrameworkElementFactory(typeof(TextBlock));
-        toolLabel.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding());
-        toolLabel.SetValue(TextBlock.ForegroundProperty, Brushes.Black);
-        collisionTool.ItemTemplate = new DataTemplate { VisualTree = toolLabel };
+        collisionTool.WithReadableItems();
         var tools = new WrapPanel { IsEnabled = CollisionDocument is not null };
         DockPanel.SetDock(tools, Dock.Top); root.Children.Add(tools);
         tools.Children.Add(showCollision); tools.Children.Add(collisionTool);

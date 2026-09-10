@@ -5,27 +5,7 @@ internal static class LinkChecks
     public static void Run(string folder, Action<bool, string> check, Action<Action, string> throws)
     {
         (PresetDocument Json, Ds1CollisionDocument Ds1, PlacementLinks Links) Fixture(bool sharedAnchor = false)
-        {
-            string root = Path.Combine(folder, "links-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
-            string map = Path.Combine(root, "town.ds1"), preset = Path.Combine(root, "town.json");
-            using (var w = new BinaryWriter(File.Create(map)))
-            {
-                foreach (int n in new[] { 18, 3, 3, 0, 2, 0, 1, 1 }) w.Write(n);
-                w.Write(new byte[16 * 4 * 2]); // walls and orientations
-                for (int i = 0; i < 16; i++) w.Write(1); // nonempty floor
-                w.Write(new byte[16 * 4 * 2]); // shadow and tags
-                w.Write(2);
-                foreach (int n in new[] { 1, 7, 5, 6, 123, 2, 9, sharedAnchor ? 5 : 12, sharedAnchor ? 6 : 12, 456 }) w.Write(n);
-                w.Write(0); w.Write(0); // v18 unknown and groups
-                foreach (int n in new[] { 1, 2, 5, 6, 6, 7, 42, 8, 9, 77 }) w.Write(n);
-            }
-            File.WriteAllText(preset, "{\"entities\":[]}");
-            var seed = PresetDocument.Load(preset);
-            seed.AddModel("data/hd/a.model", new(10, 0, 10)); seed.AddModel("data/hd/b.model", new(10, 0, 10));
-            File.WriteAllBytes(preset, seed.Serialize());
-            var json = PresetDocument.Load(preset); var ds1 = Ds1CollisionDocument.Load(map);
-            return (json, ds1, new(json, ds1));
-        }
+            => LinkFixture.Create(folder, sharedAnchor);
         EntityTransform Shift(PresetEntity e, double x, double z = 0) => e.Transform with { Position = e.Transform.Position with { X = e.Transform.Position.X + x, Z = e.Transform.Position.Z + z } };
         bool Blocked(Ds1CollisionDocument d, int x, int y) => (d.Cell(d.Floors[0], x, y) & Ds1CollisionDocument.Unwalkable) != 0;
         {
@@ -134,8 +114,11 @@ internal static class LinkChecks
         d.Undo(); check(e.Transform == start, "merged history can undo original HD edit from DS1");
         d.Redo(); d.Redo(); d.Redo(); check(links.HasLinks && Blocked(d, 0, 0), "merged history redo restores edits and link");
         links.SaveMetadata();
-        var stale = new PlacementLinks(PresetDocument.Load(j.SourcePath), Ds1CollisionDocument.Load(d.SourcePath));
-        check(stale.Warning is not null, "stale source pair is detected instead of guessing placement");
+        var staleJson = PresetDocument.Load(j.SourcePath); var staleDs1 = Ds1CollisionDocument.Load(d.SourcePath);
+        var stale = new PlacementLinks(staleJson, staleDs1);
+        check(stale.Warning is null && stale.BrokenLinkCount == 1 && stale.LinkStates[0].Reason is not null,
+            "stale source pair isolates the affected link instead of guessing placement");
+        throws(() => stale.Move(staleJson.Entities[0], Shift(staleJson.Entities[0], 2)), "a broken link refuses linked movement");
 
         (j, d, links) = Fixture(); e = j.Entities[0]; b = j.Entities[1];
         links.LinkUnit(e, 0, 10); links.Move(e, Shift(e, 2));

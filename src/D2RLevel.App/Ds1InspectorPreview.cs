@@ -12,15 +12,26 @@ public sealed class Ds1InspectorPreview : StackPanel
     private readonly TextBlock status = new() { Text = "Open a JSON preset to find its DS1.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 6) };
     private readonly Image preview = new() { Height = 180, Stretch = Stretch.Uniform, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     private readonly TextBlock position = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightSteelBlue };
-    private readonly TextBox units = new() { Text = "10", Width = 48 };
+    private readonly TextBlock calibrationText = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightSteelBlue, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly TextBlock calibrationWarning = new() { TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(228, 186, 116)), Margin = new Thickness(0, 2, 0, 0) };
     private readonly Dictionary<Dt1Floor, BitmapSource> textures = new();
     private LegacyFloorScene? scene;
     private PresetEntity? selected;
     private string pairStatus = "";
     private double magnification = .55;
     public event Action? OpenRequested;
-    public double UnitsPerTile => double.TryParse(units.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && double.IsFinite(value) && value > 0 ? value : 10;
+    /// <summary>This pair's HD-to-DS1 registration. Every view that converts between the
+    /// two formats reads it here, so the scale can never differ between panels.</summary>
+    public GridCalibration Calibration { get; private set; } = GridCalibration.Unverified;
+    public double UnitsPerTile => Calibration.UnitsPerTile;
     public event Action? ScaleChanged;
+    public event Action? CalibrateRequested;
+    public void SetCalibration(GridCalibration value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (Calibration == value) return;
+        Calibration = value; Refresh(); ScaleChanged?.Invoke();
+    }
     public bool HasPreview => preview.Source is not null;
     public string StatusText => status.Text;
     public Ds1InspectorPreview()
@@ -32,10 +43,20 @@ public sealed class Ds1InspectorPreview : StackPanel
         Button("−", () => { magnification = Math.Max(.2, magnification / 1.4); Refresh(); });
         Button("+", () => { magnification = Math.Min(1.5, magnification * 1.4); Refresh(); });
         Button("Open DS1…", () => OpenRequested?.Invoke());
+        Children.Add(new TextBlock { Text = "GRID CALIBRATION", FontWeight = FontWeights.Bold, Margin = new Thickness(0, 10, 0, 0) });
+        Children.Add(calibrationText); Children.Add(calibrationWarning);
         var scale = new WrapPanel(); Children.Add(scale);
-        scale.Children.Add(new TextBlock { Text = "HD units/tile", VerticalAlignment = VerticalAlignment.Center }); scale.Children.Add(units);
-        units.ToolTip = "Approximate HD-to-DS1 scale. Check alignment for this preset; no object ownership is inferred.";
-        units.TextChanged += (_, _) => { Refresh(); ScaleChanged?.Invoke(); };
+        var calibrate = new Button { Content = "Calibrate…", Padding = new Thickness(7, 4, 7, 4),
+            ToolTip = "Measure this pair's HD-to-DS1 scale from terrain or from objects already linked, or enter it by hand." };
+        calibrate.Click += (_, _) => CalibrateRequested?.Invoke();
+        scale.Children.Add(calibrate);
+        RefreshCalibration();
+    }
+    private void RefreshCalibration()
+    {
+        calibrationText.Text = Calibration.Describe();
+        calibrationWarning.Text = Calibration.Warning ?? "";
+        calibrationWarning.Visibility = Calibration.Warning is null ? Visibility.Collapsed : Visibility.Visible;
     }
     public void SetScene(LegacyFloorScene? next, string message)
     { if (!ReferenceEquals(scene, next)) textures.Clear(); scene = next; pairStatus = message; Refresh(); }
@@ -61,10 +82,10 @@ public sealed class Ds1InspectorPreview : StackPanel
     public void Refresh()
     {
         preview.Source = null; preview.Visibility = Visibility.Collapsed; status.Text = pairStatus; position.Text = "";
+        RefreshCalibration();
         if (scene is null) return;
         if (selected?.CanTransform != true || selected.HasParent) { position.Text = "Select an unparented HD object to inspect its DS1 surroundings."; return; }
-        if (!double.TryParse(units.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out double scale) || !double.IsFinite(scale) || scale <= 0)
-        { position.Text = "Enter a positive HD units/tile scale."; return; }
+        double scale = Calibration.UnitsPerTile;
         double x = selected.Transform.Position.X / scale, y = selected.Transform.Position.Z / scale;
         if (!double.IsFinite(x) || !double.IsFinite(y) || x < 0 || y < 0 || x >= scene.Map.Width || y >= scene.Map.Height)
         { position.Text = "Selected HD object lies outside this DS1 at the current scale. Check alignment."; return; }

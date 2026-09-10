@@ -16,6 +16,7 @@
             <Button Content="Model explorer…" Click="Models_Click"/><Button Content="DS1 workspace…" Click="Floors_Click"/>
             <CheckBox x:Name="ShowNpcs" Content="NPCs" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Npcs_Click" ToolTip="DS1-backed NPCs in a static reference pose. Drag to move the DS1 unit; unresolved units use named markers."/>
             <CheckBox x:Name="ShowTerrain" Content="Terrain" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Terrain_Click" ToolTip="Show terrain meshes with a paired-DS1 floor reference where available. Approximate registration; not full HD biome shading."/>
+            <CheckBox x:Name="LockTerrain" Content="Lock terrain" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="LockTerrain_Click" ToolTip="Locked terrain cannot be clicked or dragged in the viewport, so clicks pass through to the props standing on it. Select it in the entity list to inspect it; untick to move it."/>
             <Button Content="Focus area" Click="FocusArea_Click" ToolTip="Select a prop first. Preview a nearby working area; Home shows the whole map again."/>
             <CheckBox x:Name="FullDetail" Content="Full detail (slower)" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Detail_Click" ToolTip="Balanced uses LOD2, or LOD4 for very large presets, and 512px texture mips. Changing reloads the preview only."/>
           </WrapPanel>
@@ -117,6 +118,8 @@
               <Button x:Name="EditCollisionButton" Content="Add collision…" Click="EditCollision_Click" IsEnabled="False"/>
               <Button x:Name="AlignUnitButton" Content="Align linked unit to HD" Click="AlignUnit_Click" Visibility="Collapsed"/>
               <Button x:Name="SavePairButton" Content="Save linked pair…" Click="SavePair_Click"/>
+              <Button x:Name="ReviewLinksButton" Content="Review broken links…" Visibility="Collapsed" Click="ReviewLinks_Click"
+                      ToolTip="Some links no longer match this pair. Review them individually; every other link keeps working."/>
               <Button Content="Reset invalid links…" x:Name="ResetLinksButton" Visibility="Collapsed" Click="ResetLinks_Click"/>
             </WrapPanel>
             <TextBlock x:Name="GroupStatus" TextWrapping="Wrap" Foreground="#A9BED2" Margin="0,10,0,4"/>

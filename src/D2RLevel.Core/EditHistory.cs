@@ -10,11 +10,14 @@ public sealed class EditHistory
     public bool CanRedo => redo.Count > 0;
     public bool Shared { get; internal set; }
     public event Action<object?>? Changed;
+    /// <summary>Bumped by every applied edit. Observers cache derived state against it
+    /// rather than recomputing on each query or hooking every mutation site.</summary>
+    public long Version { get; private set; }
     public void Record(Action reverse, Action forward, object? subject = null)
     {
         var edit = new Edit(reverse, forward, subject, Interlocked.Increment(ref sequence));
         if (transaction is not null) { transaction.Add(edit); return; }
-        undo.Push(edit); redo.Clear(); Changed?.Invoke(subject);
+        undo.Push(edit); redo.Clear(); Version++; Changed?.Invoke(subject);
     }
     public void Transaction(Action action, object? subject = null)
     {
@@ -33,14 +36,14 @@ public sealed class EditHistory
     public object? Undo()
     {
         if (!undo.TryPeek(out var edit)) return null;
-        edit.Undo(); undo.Pop(); redo.Push(edit); Changed?.Invoke(edit.Subject); return edit.Subject;
+        edit.Undo(); undo.Pop(); redo.Push(edit); Version++; Changed?.Invoke(edit.Subject); return edit.Subject;
     }
     public object? Redo()
     {
         if (!redo.TryPeek(out var edit)) return null;
-        edit.Redo(); redo.Pop(); undo.Push(edit); Changed?.Invoke(edit.Subject); return edit.Subject;
+        edit.Redo(); redo.Pop(); undo.Push(edit); Version++; Changed?.Invoke(edit.Subject); return edit.Subject;
     }
-    public void Clear() { undo.Clear(); redo.Clear(); }
+    public void Clear() { undo.Clear(); redo.Clear(); Version++; }
     internal void Merge(EditHistory other)
     {
         if (ReferenceEquals(this, other)) return;

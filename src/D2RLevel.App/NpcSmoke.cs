@@ -4,6 +4,18 @@ using D2RLevel.Core;
 namespace D2RLevel.App;
 public partial class MainWindow
 {
+    private async Task Capture(Window window, string path)
+    {
+        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+        window.UpdateLayout();
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            (int)window.ActualWidth, (int)window.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+        bitmap.Render(window);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var file = File.Create(path); encoder.Save(file);
+    }
+
     private async Task VerifyNpcs(string output)
     {
         Directory.CreateDirectory(output);
@@ -52,7 +64,25 @@ public partial class MainWindow
         if (Selected?.GameplayUnitIndex != index) throw new InvalidOperationException("DS1 selection sync failed.");
         Undo_Click(this, new());
         Redo_Click(this, new());
+        string pathResult = ds1Window.VerifyPathEditing();
+        // The route overlay must draw for a patrolling unit and never become an entity.
+        int patrolling = ds1.Units.Select((_, i) => i).First(i => ds1.PatrolPoints(i).Count > 0 && ds1.PathEditWarning(i) is null);
+        int entitiesBefore = document!.Entities.Count;
+        ds1Window.SelectGameplayUnit(patrolling);
+        RefreshPathOverlay();
+        if (!Scene.HasPathOverlay) throw new InvalidOperationException("Patrol route overlay did not draw for a patrolling unit.");
+        if (document.Entities.Count != entitiesBefore || document.IsDirty)
+            throw new InvalidOperationException("Patrol overlay altered the HD preset.");
+        ShowNpcs.IsChecked = false; Npcs_Click(this, new());
+        if (Scene.HasPathOverlay) throw new InvalidOperationException("Patrol route overlay survived hiding NPCs.");
+        ShowNpcs.IsChecked = true; Npcs_Click(this, new());
+        ds1Window.SelectGameplayUnit(patrolling);
+        RefreshPathOverlay();
+        var patrolUnit = ds1.Units[patrolling];
+        Scene.FocusOn(patrolUnit.X * Ds1Preview.UnitsPerTile / 5, patrolUnit.Y * Ds1Preview.UnitsPerTile / 5, Ds1Preview.UnitsPerTile * 4);
+        await Capture(this, Path.Combine(output, "patrol-hd.png"));
+        await Capture(ds1Window, Path.Combine(output, "patrol-ds1.png"));
         ds1Window.Close();
-        File.WriteAllText(Path.Combine(output, "smoke.txt"), $"PASS real Akara static mesh, NPC move/undo/redo, drag commit/cancel, save/reopen, unchanged JSON, toggle and DS1 selection. {npcItems.Count} NPCs; {npcItems.Count(i => !i.IsPlaceholder)} meshes.\nAkara bounds: {akara.Geometry.Bounds}\n" + string.Join("\n", npcPreview.Diagnostics));
+        File.WriteAllText(Path.Combine(output, "smoke.txt"), $"PASS real Akara static mesh, NPC move/undo/redo, drag commit/cancel, save/reopen, unchanged JSON, toggle and DS1 selection. {npcItems.Count} NPCs; {npcItems.Count(i => !i.IsPlaceholder)} meshes.\nAkara bounds: {akara.Geometry.Bounds}\n{pathResult}\nPASS patrol overlay: drew for unit #{patrolling}, cleared with the NPC toggle, left the preset untouched.\n" + string.Join("\n", npcPreview.Diagnostics));
     }
 }

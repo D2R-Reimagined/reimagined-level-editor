@@ -4,7 +4,8 @@ using D2RLevel.Assets;
 
 if (args.Length > 0 && args[0] == "--gameplay-audit")
 {
-    int maps = 0, units = 0, paths = 0, moved = 0, warnings = 0, unsupported = 0;
+    int maps = 0, units = 0, paths = 0, moved = 0, warnings = 0, unsupported = 0, editedPaths = 0, blockedPaths = 0;
+    var actions = new Dictionary<uint, int>();
     foreach (var path in Directory.EnumerateFiles(args[1], "*.ds1", SearchOption.AllDirectories))
     {
         Ds1CollisionDocument doc;
@@ -29,8 +30,168 @@ if (args.Length > 0 && args[0] == "--gameplay-audit")
             doc.Undo(); if (!doc.Serialize().SequenceEqual(before)) throw new Exception("Undo changed bytes: " + path);
             moved++;
         }
+        // Patrol editing on every real path: patch, grow, shrink, each undone exactly.
+        foreach (var unit in doc.Units)
+        {
+            var points = doc.PatrolPoints(unit.Index);
+            foreach (var point in points) actions[point.Action] = actions.GetValueOrDefault(point.Action) + 1;
+            if (points.Count == 0 || doc.PathEditWarning(unit.Index) is not null) { blockedPaths++; continue; }
+            doc.MovePathPoint(unit.Index, 0, points[0].X, points[0].Y + (points[0].Y + 1 < doc.Height * 5 ? 1 : -1));
+            doc.Undo(); if (!doc.Serialize().SequenceEqual(before)) throw new Exception("Path move undo changed bytes: " + path);
+            doc.SetPathPointAction(unit.Index, 0, points[0].Action == 1 ? 2u : 1u);
+            doc.Undo(); if (!doc.Serialize().SequenceEqual(before)) throw new Exception("Path action undo changed bytes: " + path);
+            doc.InsertPathPoint(unit.Index, points.Count, points[0].X, points[0].Y, points[0].Action);
+            if (doc.PatrolPoints(unit.Index).Count != points.Count + 1) throw new Exception("Insert did not extend the path: " + path);
+            if (doc.Serialize().Length != before.Length + 12) throw new Exception("Insert resized by the wrong amount: " + path);
+            doc.Undo(); if (!doc.Serialize().SequenceEqual(before)) throw new Exception("Path insert undo changed bytes: " + path);
+            doc.RemovePathPoint(unit.Index, points.Count - 1);
+            if (doc.PatrolPoints(unit.Index).Count != points.Count - 1) throw new Exception("Remove did not shorten the path: " + path);
+            doc.Undo(); if (!doc.Serialize().SequenceEqual(before)) throw new Exception("Path remove undo changed bytes: " + path);
+            editedPaths++;
+        }
     }
     Console.WriteLine($"PASS gameplay corpus: {maps} maps, {units} units, {paths} linked patrol points, {moved} in-memory move/undo checks, {warnings} maps with movement disabled, {unsupported} unsupported files. No source writes.");
+    Console.WriteLine($"PASS patrol corpus: {editedPaths} paths edited and undone byte-exactly (move, action, insert, remove); {blockedPaths} units without an editable path.");
+    Console.WriteLine("Patrol action distribution: " + string.Join(", ", actions.OrderBy(p => p.Key).Select(p => $"{p.Key}x{p.Value}")));
+    return;
+}
+
+if (args.Length > 0 && args[0] == "--animation-audit")
+{
+    // args: --animation-audit <dataRoot> <granny2.dll> [limit]
+    ModelReader.ConfigureDecoder(Path.GetFullPath(args[2]));
+    var resolver = new AssetResolver(args[1]);
+    int limit = args.Length > 3 ? int.Parse(args[3]) : int.MaxValue;
+    int rigs = 0, skinned = 0, unskinned = 0, noAssets = 0, failed = 0, posed = 0, partial = 0, staticPose = 0;
+    var modeNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    var clock = System.Diagnostics.Stopwatch.StartNew();
+    double worstFrameMs = 0;
+    foreach (var category in new[] { "enemy", "npc", "player" })
+    {
+        var root = Path.Combine(resolver.DataRoot, "hd", "character", category);
+        if (!Directory.Exists(root)) continue;
+        foreach (var dir in Directory.EnumerateDirectories(root).Take(limit))
+        {
+            string lod = args.Length > 4 ? args[4] : "lod3";
+            var model = Directory.EnumerateFiles(dir, $"torso_{lod}.model").FirstOrDefault()
+                ?? Directory.EnumerateFiles(dir, $"*_{lod}.model").FirstOrDefault();
+            if (model is null) continue;
+            var logical = "data/" + Path.GetRelativePath(resolver.DataRoot, model).Replace('\\', '/');
+            var paths = CharacterAssets.Find(logical, resolver);
+            if (paths is null) { noAssets++; continue; }
+            try
+            {
+                var rig = CharacterAnimationReader.LoadRig(paths.RigPath);
+                var animations = CharacterAnimationReader.LoadAnimations(paths.AnimationsPath, rig);
+                var asset = ModelReader.Load(model);
+                rigs++;
+                if (!asset.IsSkinned) { unskinned++; continue; }
+                skinned++;
+                foreach (var a in animations) modeNames[a.Name] = modeNames.GetValueOrDefault(a.Name) + 1;
+                var pose = new RigPose(rig);
+                // Meshes may bind bones outside the shared rig; those influences are skipped.
+                var unresolved = pose.UnresolvedBones(asset);
+                if (unresolved.Count > 0)
+                { partial++; Console.WriteLine($"PARTIAL {Path.GetFileName(dir)}: {unresolved.Count} bound bone(s) not in the rig, e.g. {unresolved[0]}"); }
+                var animation = animations.FirstOrDefault(a => a.Name == "neutral") ?? animations.FirstOrDefault();
+                if (animation is null) continue;
+                var buffers = asset.Parts.Select(p => new float[p.Positions.Length]).ToArray();
+                var normals = asset.Parts.Select(p => new float[p.Normals.Length]).ToArray();
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    var frameClock = System.Diagnostics.Stopwatch.StartNew();
+                    pose.Apply(animation, animation.Duration * frame / 8f);
+                    for (int i = 0; i < asset.Parts.Count; i++) pose.Skin3(asset.Parts[i], buffers[i], normals[i]);
+                    worstFrameMs = Math.Max(worstFrameMs, frameClock.Elapsed.TotalMilliseconds);
+                    foreach (var buffer in buffers)
+                        foreach (var value in buffer)
+                            if (!float.IsFinite(value)) throw new InvalidDataException("Posed vertex is not finite.");
+                    posed++;
+                    // A pose must stay near the bind silhouette. Degenerate keyframe data
+                    // collapses a character to a point or flings it out of the world, and
+                    // neither shows up as a non-finite value. Judged over the whole
+                    // character: hiding one optional mesh by scaling it to zero is normal.
+                    var bindBox = Extent(asset.Parts.SelectMany(p => p.Positions).ToArray());
+                    var posedBox = Extent(buffers.SelectMany(b => b).ToArray());
+                    if (posedBox.Size < bindBox.Size * 0.05)
+                        throw new InvalidDataException($"Posed character collapsed ({posedBox.Size:F3} vs bind {bindBox.Size:F3}) in '{animation.Name}'.");
+                    if (posedBox.Reach > bindBox.Reach * 20 + 10)
+                        throw new InvalidDataException($"Posed character flew away ({posedBox.Reach:F1} vs bind {bindBox.Reach:F1}) in '{animation.Name}'.");
+                }
+                // A pose must actually move something, or the sampler is silently inert.
+                var rest = asset.Parts.Select(p => new float[p.Positions.Length]).ToArray();
+                pose.Apply(animation, 0);
+                for (int i = 0; i < asset.Parts.Count; i++) pose.Skin3(asset.Parts[i], rest[i]);
+                var moved = asset.Parts.Select(p => new float[p.Positions.Length]).ToArray();
+                pose.Apply(animation, animation.Duration / 2);
+                for (int i = 0; i < asset.Parts.Count; i++) pose.Skin3(asset.Parts[i], moved[i]);
+                bool changed = rest.Select((b, i) => !b.SequenceEqual(moved[i])).Any(x => x);
+                if (animation.Duration > 0.1f && !changed) { staticPose++; Console.WriteLine($"STATIC {Path.GetFileName(dir)}/{animation.Name}: no vertex moved."); }
+                // Posing must never drift the bind pose itself.
+                pose.Apply(null, 0);
+                var bind = new float[asset.Parts[0].Positions.Length];
+                pose.Skin3(asset.Parts[0], bind);
+                for (int i = 0; i < bind.Length; i++)
+                    if (Math.Abs(bind[i] - asset.Parts[0].Positions[i]) > 0.01f)
+                        throw new InvalidDataException($"Bind pose does not reproduce the mesh (component {i}: {bind[i]} vs {asset.Parts[0].Positions[i]}).");
+            }
+            catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or IOException)
+            { failed++; Console.WriteLine($"FAILED {Path.GetFileName(dir)}: {ex.Message}"); }
+        }
+    }
+    Console.WriteLine($"PASS animation corpus: {rigs} rigs loaded, {skinned} skinned meshes posed over {posed} frames, {unskinned} unskinned, {noAssets} folders without a rig/animation pair, {partial} with bones outside the rig, {staticPose} whose sampled pose never moved, {failed} failures.");
+    Console.WriteLine($"Worst single-frame skin: {worstFrameMs:F2}ms · total {clock.Elapsed.TotalSeconds:F1}s");
+    Console.WriteLine("Animation modes: " + string.Join(", ", modeNames.OrderByDescending(p => p.Value).Take(24).Select(p => $"{p.Key}x{p.Value}")));
+    return;
+
+    // Diagonal of the bounding box, and the furthest vertex from the origin.
+    static (double Size, double Reach) Extent(float[] values)
+    {
+        if (values.Length == 0) return (0, 0);
+        float minX = float.MaxValue, minY = float.MaxValue, minZ = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue, maxZ = float.MinValue;
+        double reach = 0;
+        for (int i = 0; i < values.Length; i += 3)
+        {
+            float x = values[i], y = values[i + 1], z = values[i + 2];
+            minX = Math.Min(minX, x); maxX = Math.Max(maxX, x);
+            minY = Math.Min(minY, y); maxY = Math.Max(maxY, y);
+            minZ = Math.Min(minZ, z); maxZ = Math.Max(maxZ, z);
+            reach = Math.Max(reach, Math.Sqrt((double)x * x + (double)y * y + (double)z * z));
+        }
+        double dx = maxX - minX, dy = maxY - minY, dz = maxZ - minZ;
+        return (Math.Sqrt(dx * dx + dy * dy + dz * dz), reach);
+    }
+}
+
+if (args.Length > 0 && args[0] == "--animation-dump")
+{
+    // args: --animation-dump <dataRoot> <granny2.dll> <characterDir> <animation>
+    ModelReader.ConfigureDecoder(Path.GetFullPath(args[2]));
+    var dumpResolver = new AssetResolver(args[1]);
+    var rig = CharacterAnimationReader.LoadRig(Directory.EnumerateFiles(Path.Combine(args[3], "skeleton"), "*.skeleton").First());
+    var anims = CharacterAnimationReader.LoadAnimations(Path.Combine(args[3], "animation", "combined.animations"), rig);
+    var clip = anims.First(a => a.Name.Equals(args[4], StringComparison.OrdinalIgnoreCase));
+    Console.WriteLine($"rig '{rig.Name}' bones={rig.Bones.Count}, clip '{clip.Name}' dur={clip.Duration:F3} tracks={clip.Tracks.Count}");
+    var root = rig.Bones[0];
+    Console.WriteLine($"root bone '{root.Name}' parent={root.ParentIndex}");
+    Console.WriteLine($"  bind T=({root.BindTranslation.X:F3},{root.BindTranslation.Y:F3},{root.BindTranslation.Z:F3}) R=({root.BindRotation.X:F3},{root.BindRotation.Y:F3},{root.BindRotation.Z:F3},{root.BindRotation.W:F3})");
+    var rootTrack = clip.Tracks.FirstOrDefault(t => t.BoneName == root.Name);
+    if (rootTrack is null) Console.WriteLine("  no track for the root bone");
+    else
+    {
+        for (int k = 0; k < Math.Min(3, rootTrack.Times.Length); k++)
+            Console.WriteLine($"  key {k} t={rootTrack.Times[k]:F3} T=({rootTrack.Translations[k].X:F3},{rootTrack.Translations[k].Y:F3},{rootTrack.Translations[k].Z:F3}) R=({rootTrack.Rotations[k].X:F3},{rootTrack.Rotations[k].Y:F3},{rootTrack.Rotations[k].Z:F3},{rootTrack.Rotations[k].W:F3})");
+    }
+    // Compare a few bones' world positions in bind versus posed, to see what moved.
+    var bindPose = new RigPose(rig); var posedPose = new RigPose(rig);
+    posedPose.Apply(clip, clip.Duration / 2);
+    foreach (var name in new[] { rig.Bones[0].Name, "pelvis_bind_jnt", "head_bind_jnt", "spine_01_bind_jnt" })
+    {
+        if (!rig.IndexByName.TryGetValue(name, out int i)) continue;
+        var s = posedPose.Skin[i];
+        Console.WriteLine($"  {name}: skin row0=({s.M11:F3},{s.M12:F3},{s.M13:F3}) row1=({s.M21:F3},{s.M22:F3},{s.M23:F3}) row2=({s.M31:F3},{s.M32:F3},{s.M33:F3}) T=({s.M41:F3},{s.M42:F3},{s.M43:F3})");
+    }
     return;
 }
 
@@ -107,6 +268,9 @@ try
     CollisionChecks.Run(folder, Check, Throws);
     GameplayChecks.Run(folder, Check, Throws);
     LinkChecks.Run(folder, Check, Throws);
+    LinkRepairChecks.Run(folder, Check, Throws);
+    PathChecks.Run(folder, Check, Throws);
+    CalibrationChecks.Run(folder, Check, Throws);
     var pairBase = Path.Combine(folder, "pair-base"); var pairMod = Path.Combine(folder, "pair-mod");
     foreach (var root in new[] { pairBase, pairMod })
     {
