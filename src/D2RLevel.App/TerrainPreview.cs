@@ -21,7 +21,7 @@ public static class TerrainPreview
             token.ThrowIfCancellationRequested();
             for (int x = 0; x < scene.Map.Width; x++)
             {
-                var tiles = scene.Map.Layers.Select(l => l[y * scene.Map.Width + x])
+                var tiles = Enumerable.Range(0, scene.Map.Layers.Length).Select(l => scene.FloorAt(l, x, y))
                     .Where(c => !c.IsEmpty).Select(c => scene.Tiles.GetValueOrDefault((c.Main, c.Sub))?.FirstOrDefault()).OfType<Dt1Floor>().ToArray();
                 for (int v = 0; v < size; v++) for (int u = 0; u < size; u++)
                 {

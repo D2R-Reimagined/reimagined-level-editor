@@ -125,6 +125,20 @@ public sealed class PresetDocument
         return new(root, Encoding.UTF8.GetBytes(root.ToJsonString()), "model-preview.json");
     }
 
+    public PresetDocument AuthoringScaffold(string path, bool keepScenery = false)
+    {
+        var copy = (JsonObject)root.DeepClone();
+        // Unknown components and any hierarchy are retained: their ownership cannot be inferred.
+        if (!keepScenery && !Entities.Any(e => e.HasParent))
+        {
+            string[] known = ["TransformDefinitionComponent", "ModelDefinitionComponent", "ModelVariationDefinitionComponent", "ModelPlatformTierComponent", "PhysicsBodyDefinitionComponent"];
+            var remove = Entities.Where(e => !e.IsTerrain && e.PreviewModel is not null &&
+                e.Components.All(c => known.Contains(c["type"]?.GetValue<string>()))).Select(e => e.Index).ToHashSet();
+            copy["entities"] = new JsonArray(Entities.Where(e => !remove.Contains(e.Index)).Select(e => e.Data.DeepClone()).ToArray());
+        }
+        return new(copy, Encoding.UTF8.GetBytes(copy.ToJsonString(new JsonSerializerOptions { WriteIndented = true })), path);
+    }
+
     public PresetEntity AddModel(string modelPath, Vector3d position, IEnumerable<string>? texturePaths = null)
     {
         static string ValidatePath(string path, string extension)

@@ -12,7 +12,7 @@ namespace D2RLevel.App;
 public sealed partial class LegacyFloorWindow
 {
     private readonly CheckBox showCollision = new() { Content = "Collision", Foreground = Brushes.White, IsChecked = true, Margin = new Thickness(8) };
-    private readonly ComboBox collisionTool = new() { ItemsSource = new[] { "Inspect", "Paint blocked", "Clear DS1 override" }, Foreground = Brushes.Black, SelectedIndex = 0, Width = 170, Margin = new Thickness(8) };
+    private readonly ComboBox collisionTool = new() { ItemsSource = new[] { "Inspect", "Paint blocked", "Clear DS1 override", "Paint floor", "Erase floor", "Pick floor", "Fill floor", "Rectangle floor" }, Foreground = Brushes.Black, SelectedIndex = 0, Width = 170, Margin = new Thickness(8) };
     private readonly Button collisionUndo = new() { Content = "Undo" }, collisionRedo = new() { Content = "Redo" };
     private readonly TextBlock collisionStatus = new() { Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
     private readonly Canvas strokePreview = new() { IsHitTestVisible = false };
@@ -122,7 +122,10 @@ public sealed partial class LegacyFloorWindow
         image.MouseLeftButtonDown += (_, e) =>
         {
             if (collisionTool.SelectedIndex == 0 || CollisionDocument is null) return;
-            CancelStroke(); painting = true; blockStroke = collisionTool.SelectedIndex == 1;
+            CancelStroke();
+            try { if (!BeginGround(e.GetPosition(image))) { e.Handled = true; return; } }
+            catch (Exception ex) { collisionStatus.Text = ex.Message; e.Handled = true; return; }
+            painting = true; blockStroke = collisionTool.SelectedIndex == 1;
             image.Focus(); image.CaptureMouse(); AddStrokePoint(e.GetPosition(image)); e.Handled = true;
         };
         image.MouseMove += (_, e) => { if (painting) { AddStrokePoint(e.GetPosition(image)); e.Handled = true; } };
@@ -142,6 +145,7 @@ public sealed partial class LegacyFloorWindow
         var cells = stroke.ToArray(); bool block = blockStroke; CancelStroke();
         try
         {
+            if (strokeTool >= 3) { ApplyGround(cells); return; }
             int changed = CollisionDocument!.Paint(cells, block);
             CollisionChanged(); collisionStatus.Text = $"{changed} layer cells changed · Ctrl+Z undoes the stroke. " + (block ? "Empty floor cells are skipped." : "DT1 blocking remains in effect.");
         }
@@ -183,23 +187,38 @@ public sealed partial class LegacyFloorWindow
         var tile = TileAt(point);
         if (tile is not { } current) { lastTile = null; return; }
         var previous = lastTile ?? current;
+        if (strokeTool == 7)
+        {
+            rectangleStart ??= current;
+            stroke.Clear(); strokePreview.Children.Clear();
+            for (int ry = Math.Min(rectangleStart.Value.Y, current.Y); ry <= Math.Max(rectangleStart.Value.Y, current.Y); ry++)
+                for (int rx = Math.Min(rectangleStart.Value.X, current.X); rx <= Math.Max(rectangleStart.Value.X, current.X); rx++) AddCell(rx, ry);
+            lastTile = current;
+            return;
+        }
         int steps = Math.Max(Math.Abs(current.X - previous.X), Math.Abs(current.Y - previous.Y));
         for (int i = 0; i <= steps; i++)
         {
             double t = steps == 0 ? 0 : (double)i / steps;
             int x = (int)Math.Round(previous.X + (current.X - previous.X) * t), y = (int)Math.Round(previous.Y + (current.Y - previous.Y) * t);
-            if (blockStroke && !CollisionDocument!.CanBlock(x, y)) continue;
-            if (!stroke.Add((x, y))) continue;
+            int radius = strokeTool >= 3 ? strokeSize / 2 : 0;
+            for (int by = Math.Max(0, y - radius); by <= Math.Min(scene.Map.Height - 1, y + radius); by++)
+                for (int bx = Math.Max(0, x - radius); bx <= Math.Min(scene.Map.Width - 1, x + radius); bx++) AddCell(bx, by);
+        }
+        lastTile = current;
+        collisionStatus.Text = $"Preview: {stroke.Count} tiles · Release to apply · Esc cancels";
+        void AddCell(int x, int y)
+        {
+            if (blockStroke && !CollisionDocument!.CanBlock(x, y)) return;
+            if (!stroke.Add((x, y))) return;
             var geometry = Diamond((x - y + scene.Map.Height - 1) * 80, (x + y) * 40);
             geometry.Transform = new ScaleTransform(scale * zoom.Value, scale * zoom.Value);
             strokePreview.Children.Add(new System.Windows.Shapes.Path { Data = geometry, Fill = new SolidColorBrush(Color.FromArgb(150, blockStroke ? (byte)255 : (byte)50, 180, 30)) });
         }
-        lastTile = current;
-        collisionStatus.Text = $"Preview: {stroke.Count} tiles · Release to apply · Esc cancels";
     }
     private void CancelStroke()
     {
-        painting = false; lastTile = null; stroke.Clear(); strokePreview.Children.Clear();
+        painting = false; lastTile = null; rectangleStart = null; stroke.Clear(); strokePreview.Children.Clear();
         if (image.IsMouseCaptured) image.ReleaseMouseCapture();
     }
     private void InspectCollision(int x, int y)

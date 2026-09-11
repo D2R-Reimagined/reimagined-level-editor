@@ -19,19 +19,26 @@ public static class SceneWorkspace
         token.ThrowIfCancellationRequested();
         root = Path.GetFullPath(root);
         string presets = Path.Combine(root, "hd", "env", "preset");
-        if (!Directory.Exists(presets)) throw new InvalidDataException("Choose the mod data directory containing hd/env/preset.");
+        if (!Directory.Exists(root)) throw new DirectoryNotFoundException("Choose an existing workspace directory.");
+        if (!Directory.Exists(presets)) return [];
         var result = new List<WorkspaceScene>();
         foreach (var json in Directory.EnumerateFiles(presets, "*.json", new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint }))
         {
             token.ThrowIfCancellationRequested();
-            if (json.EndsWith(PlacementLinks.Suffix, StringComparison.OrdinalIgnoreCase)) continue;
+            if (json.EndsWith(PlacementLinks.Suffix, StringComparison.OrdinalIgnoreCase) || json.EndsWith(LevelProject.Suffix, StringComparison.OrdinalIgnoreCase) || json.EndsWith(".rle-groups.json", StringComparison.OrdinalIgnoreCase)) continue;
             string relative = Path.GetRelativePath(presets, json);
+            string name = relative.Replace('\\', '/');
             string ds1 = Path.Combine(root, "global", "tiles", Path.ChangeExtension(relative, ".ds1"));
-            try { if (PlacementLinks.LinkedDs1Path(json) is { } saved) ds1 = Inside(root, saved); }
+            try
+            {
+                if (LevelProject.ForPreset(json) is { } project)
+                { name = project.Name; ds1 = Inside(root, Path.Combine(root, project.Map[5..])); }
+                if (PlacementLinks.LinkedDs1Path(json) is { } saved) ds1 = Inside(root, saved);
+            }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException)
             { /* Keep the canonical pair discoverable; opening it will display invalid link metadata. */ }
             Inside(root, json); Inside(root, ds1);
-            if (File.Exists(ds1)) result.Add(new(relative.Replace('\\', '/'), json, ds1));
+            if (File.Exists(ds1)) result.Add(new(name, json, ds1));
         }
         return result.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
@@ -43,12 +50,15 @@ public sealed class WorkspaceSceneSession
     public WorkspaceScene Scene { get; }
     private readonly string[] paths;
     private byte[]?[] snapshots;
+    private readonly byte[]? projectSnapshot;
     public WorkspaceSceneSession(string root, WorkspaceScene scene)
     {
-        this.root = Path.GetFullPath(root); Scene = scene;
-        paths = [scene.JsonPath, scene.Ds1Path, scene.JsonPath + PlacementLinks.Suffix];
+        this.root = Path.GetFullPath(root);
+        Scene = scene with { JsonPath = Path.GetFullPath(scene.JsonPath), Ds1Path = Path.GetFullPath(scene.Ds1Path) };
+        paths = [Scene.JsonPath, Scene.Ds1Path, Scene.JsonPath + PlacementLinks.Suffix];
         foreach (var path in paths) SceneWorkspace.Inside(root, path);
         snapshots = paths.Select(Read).ToArray();
+        projectSnapshot = Read(scene.JsonPath + LevelProject.Suffix);
         if (snapshots[0] is null || snapshots[1] is null) throw new FileNotFoundException("The workspace scene pair is missing.");
     }
     private static byte[]? Read(string path) => File.Exists(path) ? File.ReadAllBytes(path) : null;
@@ -56,6 +66,8 @@ public sealed class WorkspaceSceneSession
     private static bool Equal(byte[]? a, byte[]? b) => a is null ? b is null : b is not null && a.SequenceEqual(b);
     public void Save(PresetDocument json, Ds1CollisionDocument ds1, PlacementLinks links)
     {
+        if (!Equal(Read(Scene.JsonPath + LevelProject.Suffix), projectSnapshot)) throw new IOException("Level project changed outside the editor. Reopen before saving.");
+        LevelProject.ForPreset(Scene.JsonPath)?.VerifyMap(ds1);
         if (!string.Equals(json.SourcePath, Path.GetFullPath(paths[0]), StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(ds1.SourcePath, Path.GetFullPath(paths[1]), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Loaded documents do not match the workspace scene.");

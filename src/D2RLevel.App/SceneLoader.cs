@@ -13,6 +13,15 @@ public static class SceneLoader
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
         int preferredLod = fullDetail ? 0 : doc.Entities.Count > 2000 ? 4 : 2;
+        if (resolve is null && resolver is not null && PresetPairing.Split(doc.SourcePath, "hd/env/preset") is { } location)
+        {
+            var local = new AssetResolver(location.DataRoot);
+            resolve = (path, model) =>
+            {
+                string candidate = model ? local.ResolvePreviewModel(path, preferredLod) : local.Resolve(path);
+                return System.IO.File.Exists(candidate) ? candidate : model ? resolver.ResolvePreviewModel(path, preferredLod) : resolver.Resolve(path);
+            };
+        }
         long lastProgress = -100, textureBytes = 0;
         var items = new List<SceneItem>();
         var messages = new HashSet<string>();

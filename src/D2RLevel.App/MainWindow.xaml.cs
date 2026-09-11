@@ -97,6 +97,7 @@ public partial class MainWindow : Window
             }
             if (Argument("--smoke-output") is { } output)
             {
+                if (arguments.Contains("--authoring-smoke")) { await VerifyAuthoring(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--workspace-smoke") || arguments.Contains("--workspace-restore-smoke"))
                 { await VerifyWorkspace(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--group-smoke")) { await VerifyGroups(output); Application.Current.Shutdown(0); return; }
@@ -261,7 +262,24 @@ public partial class MainWindow : Window
     private async Task LoadPreset(string path)
     {
         var candidate = PresetDocument.Load(path);
-        await LoadScene(candidate, resolver);
+        bool openedProject = openingWorkspaceSession is null && LevelProject.ForPreset(path) is not null;
+        if (openedProject)
+        {
+            string root = PresetPairing.Split(path, "hd/env/preset")!.Value.DataRoot;
+            var project = LevelProject.ForPreset(path)!;
+            var scene = new WorkspaceScene(project.Name, path, SceneWorkspace.Inside(root, Path.Combine(root, project.Map[5..])));
+            openingWorkspaceSession = new(root, scene);
+        }
+        try
+        {
+            await LoadScene(candidate, resolver);
+            if (openedProject && document == candidate)
+            {
+                workspaceFolder = PresetPairing.Split(path, "hd/env/preset")!.Value.DataRoot;
+                workspaceScenes = SceneWorkspace.Scan(workspaceFolder);
+            }
+        }
+        finally { if (openedProject) { openingWorkspaceSession = null; RefreshState(); } }
     }
     private async Task LoadScene(PresetDocument candidate, AssetResolver? candidateResolver)
     {
@@ -500,6 +518,7 @@ public partial class MainWindow : Window
         window.LinkFootprintRequested += (tiles, scale, claim) => EditLink(links => links.LinkFootprint(Selected ?? throw new InvalidOperationException("Select an HD model first."), tiles, scale, claim));
         window.SaveWorkspaceRequested += () => SavePair_Click(this, new());
         window.ConfigureLinkedCollision(placementLinks, Selected?.GameplayUnitIndex is null ? Selected : null);
+        window.ConfigurePlacements(document is null ? null : LevelProject.ForPreset(document.SourcePath)?.Placements);
         window.Show();
     }
     private void Filter()
@@ -638,7 +657,8 @@ public partial class MainWindow : Window
         SavePairButton.Content = workspaceSession is not null ? "Save Scene" : "Save linked pair…";
         DeleteModelButton.IsEnabled = !busy && SelectedEntities.Length == 1 && Selected is { HasParent: false, IsTerrain: false, PreviewModel: not null };
         RefreshLinkStatus();
-        Title = $"Reimagined Level Editor · {(document is null ? "Workspace" : Path.GetFileName(document.SourcePath))}{(document?.IsDirty == true ? " *" : "")}";
+        bool dirty = document?.IsDirty == true || placementLinks?.HasMetadataChanges == true || (document?.History.Shared == true && pairedScene?.Collision?.Document.IsDirty == true);
+        Title = $"Reimagined Level Editor · {(document is null ? "Workspace" : Path.GetFileName(document.SourcePath))}{(dirty ? " *" : "")}";
     }
     private void Notify(string title, string message, bool error = false) => ToastManager.Show(ds1Window?.IsActive == true ? ds1Window : this, title, message, error);
     private void Error(Exception ex) { Status.Text = ex.Message; Notify("Action failed", ex.Message, true); }

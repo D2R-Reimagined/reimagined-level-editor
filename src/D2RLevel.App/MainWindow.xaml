@@ -3,24 +3,43 @@
   <DockPanel>
     <Border DockPanel.Dock="Top" Background="#202833" Padding="12,8">
       <StackPanel>
-        <DockPanel>
-          <TextBlock Text="REIMAGINED LEVEL EDITOR" FontWeight="Bold" FontSize="18" VerticalAlignment="Center" Margin="4,0,24,0"/>
-          <WrapPanel x:Name="Toolbar" Orientation="Horizontal">
-            <Button Content="Load Workspace…" Click="LoadWorkspace_Click"/>
-            <Button x:Name="WorkspaceExplorerButton" Content="Workspace Explorer" Click="WorkspaceExplorer_Click" IsEnabled="False"/>
+        <WrapPanel x:Name="Toolbar">
+          <TextBlock Text="REIMAGINED" FontWeight="Bold" FontSize="18" VerticalAlignment="Center" Margin="4,0,18,0"/>
+          <Menu Background="Transparent" Foreground="#E6EDF4" VerticalAlignment="Center">
+            <MenuItem Header="_File">
+              <MenuItem Header="New level from this scene…" Click="NewLevel_Click"/>
+              <Separator Style="{StaticResource MenuSeparator}"/>
+              <MenuItem Header="Load workspace…" Click="LoadWorkspace_Click"/>
+              <MenuItem x:Name="WorkspaceExplorerButton" Header="Workspace Explorer" Click="WorkspaceExplorer_Click" IsEnabled="False"/>
+              <MenuItem Header="Open preset…" Click="Open_Click"/>
+              <Separator Style="{StaticResource MenuSeparator}" Visibility="{Binding Visibility, ElementName=SaveCopyButton}"/>
+              <MenuItem x:Name="SaveCopyButton" Header="Save copy…" Click="Save_Click"/>
+            </MenuItem>
+            <MenuItem Header="_Create">
+              <MenuItem Header="New level from this scene…" Click="NewLevel_Click"/>
+              <MenuItem Header="Place model…" Click="Models_Click"/>
+              <MenuItem Header="Draw ground / edit gameplay…" Click="Floors_Click"/>
+            </MenuItem>
+            <MenuItem Header="_View">
+              <MenuItem Header="Focus selected area" Click="FocusArea_Click"/>
+              <Separator Style="{StaticResource MenuSeparator}"/>
+              <MenuItem x:Name="ShowNpcs" Header="NPCs" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="Npcs_Click"/>
+              <MenuItem x:Name="ShowTerrain" Header="Terrain" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="Terrain_Click"/>
+              <MenuItem x:Name="LockTerrain" Header="Lock terrain" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="LockTerrain_Click" ToolTip="Protect terrain from selection and movement in the viewport."/>
+              <MenuItem x:Name="FullDetail" Header="Full detail (slower)" IsCheckable="True" Click="Detail_Click"/>
+            </MenuItem>
+            <MenuItem Header="_Assets">
+              <MenuItem Header="Asset folder…" Click="Root_Click"/>
+              <MenuItem Header="Reload assets" Click="Reload_Click"/>
+              <MenuItem Header="Missing assets…" Click="Audit_Click"/>
+              <MenuItem Header="Model explorer…" Click="Models_Click"/>
+            </MenuItem>
+          </Menu>
+            <Button Content="New level…" Click="NewLevel_Click"/>
             <Button x:Name="SaveSceneButton" Content="Save Scene" Click="SaveScene_Click" IsEnabled="False"/>
-            <Button Content="Open preset…" Click="Open_Click"/><Button Content="Asset folder…" Click="Root_Click"/>
-            <Button Content="Reload assets" Click="Reload_Click"/>
-            <Button x:Name="SaveCopyButton" Content="Save copy…" Click="Save_Click"/><Button Content="Missing assets…" Click="Audit_Click"/>
             <Button x:Name="UndoButton" Content="Undo" Click="Undo_Click"/><Button x:Name="RedoButton" Content="Redo" Click="Redo_Click"/>
-            <Button Content="Model explorer…" Click="Models_Click"/><Button Content="DS1 workspace…" Click="Floors_Click"/>
-            <CheckBox x:Name="ShowNpcs" Content="NPCs" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Npcs_Click" ToolTip="DS1-backed NPCs in a static reference pose. Drag to move the DS1 unit; unresolved units use named markers."/>
-            <CheckBox x:Name="ShowTerrain" Content="Terrain" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Terrain_Click" ToolTip="Show terrain meshes with a paired-DS1 floor reference where available. Approximate registration; not full HD biome shading."/>
-            <CheckBox x:Name="LockTerrain" Content="Lock terrain" IsChecked="True" Foreground="White" Margin="8" VerticalAlignment="Center" Click="LockTerrain_Click" ToolTip="Locked terrain cannot be clicked or dragged in the viewport, so clicks pass through to the props standing on it. Select it in the entity list to inspect it; untick to move it."/>
-            <Button Content="Focus area" Click="FocusArea_Click" ToolTip="Select a prop first. Preview a nearby working area; Home shows the whole map again."/>
-            <CheckBox x:Name="FullDetail" Content="Full detail (slower)" Foreground="White" Margin="8" VerticalAlignment="Center" Click="Detail_Click" ToolTip="Balanced uses LOD2, or LOD4 for very large presets, and 512px texture mips. Changing reloads the preview only."/>
-          </WrapPanel>
-        </DockPanel>
+            <Button Content="Ground / gameplay…" Click="Floors_Click"/>
+        </WrapPanel>
         <TextBlock x:Name="PathLabel" Text="Open an extracted HD preset JSON to begin." Foreground="#9AAFC4" Margin="4,8,4,0" TextTrimming="CharacterEllipsis"/>
         <TextBlock x:Name="DecoderNotice" Text="Model decoder unavailable — restore Native/granny2.dll from the application package and restart." Foreground="#FFD28A" Margin="4,6,4,0" TextWrapping="Wrap"/>
       </StackPanel>

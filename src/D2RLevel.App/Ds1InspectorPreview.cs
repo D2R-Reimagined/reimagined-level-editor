@@ -106,9 +106,9 @@ public sealed class Ds1InspectorPreview : StackPanel
                 double px = (tx - ty - 1) * 80, py = (tx + ty) * 40;
                 double screenX = 140 + (px - (x - y) * 80) * magnification, screenY = 90 + (py - (x + y) * 40) * magnification;
                 if (screenX > 280 || screenX + 160 * magnification < 0 || screenY > 180 || screenY + 80 * magnification < 0) continue;
-                foreach (var layer in scene.Map.Layers)
+                for (int layer = 0; layer < scene.Map.Layers.Length; layer++)
                 {
-                    var cell = layer[ty * scene.Map.Width + tx];
+                    var cell = scene.FloorAt(layer, tx, ty);
                     if (!cell.IsEmpty && scene.Tiles.TryGetValue((cell.Main, cell.Sub), out var tiles)) dc.DrawImage(Texture(tiles[0]), new Rect(px, py, 160, 80));
                 }
                 if (scene.Collision is { } collision)

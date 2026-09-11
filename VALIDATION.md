@@ -27,6 +27,18 @@ Use a new output directory for each desktop smoke. Append `--features` for model
 
 ## Verification boundaries
 
+Authoring regression checks cover fresh v18 DS1 construction, floor strokes, flood boundaries, link fingerprint updates, insertion/deletion index remapping, first-path creation, portable project creation, inherited calibration, source preservation and stale-project rejection. Run the full assertion runner above.
+
+`--authoring-smoke --smoke-output <fresh-folder>` on the app, together with `--preset`, `--data` and `--settings-file`, exercises actual ground controls and a newly created project. It captures the 1100px toolbar, menu visuals, DS1 window and workspace, then verifies save/reopen. Menu rendering is checked independently when desktop focus closes the popup; this is not OS input automation.
+
+Research-only terrain probe:
+
+```powershell
+dotnet run --project tests/D2RLevel.Tests -- --terrain-export-probe '<terrain_lod0.model>' '<granny2.dll>' '<fresh-output-folder>'
+```
+
+This deliberately serializes the partial reader DTO into `partial-terrain-roundtrip.gr2` and writes a JSON report. The file is not a game-ready terrain asset and must not replace the source model. The probe separates local mesh serialization from the unresolved material/physics/game pipeline.
+
 Local checks have exercised 205 assertions and published Windows builds with paired saving, linked collision, deletion and restoration of model geometry. Portable ZIP extraction and execution have also been checked locally. Historical screenshots and logs are local artifacts, not distributed repository files.
 
 These checks do not establish compatibility on every machine, large-map performance or live-game correctness. Use a separate test mod and disposable character. Keep original game-relative paths and filenames; a different randomly selected town variant will not display your edits. Verify loading, placement, collision and units in-game. Terrain rendering is approximate and DT1/wall collision remains independent of owned floor overrides.

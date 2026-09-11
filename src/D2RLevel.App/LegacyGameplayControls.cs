@@ -30,6 +30,8 @@ public sealed partial class LegacyFloorWindow
         row.Children.Add(new TextBlock { Text = "Subtile X / Y", VerticalAlignment = VerticalAlignment.Center });
         row.Children.Add(unitX); row.Children.Add(unitY);
         var move = new Button { Content = "Move unit" }; row.Children.Add(move);
+        var add = new Button { Content = "Place unit…" }; row.Children.Add(add); add.Click += (_, _) => AddPlacement();
+        var delete = new Button { Content = "Delete unit" }; row.Children.Add(delete); delete.Click += (_, _) => DeletePlacement();
         var link = new Button { Content = "Link unit to HD", ToolTip = "Select an HD model in the JSON view and a DS1 unit here. Uses this pair's grid calibration." }; row.Children.Add(link);
         linkUnitButton = link;
         link.Click += (_, _) =>

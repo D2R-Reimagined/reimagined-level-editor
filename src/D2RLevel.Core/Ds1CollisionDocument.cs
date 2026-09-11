@@ -24,11 +24,11 @@ public sealed partial class Ds1CollisionDocument
     public bool IsDirty => !bytes.AsSpan().SequenceEqual(saved);
     public bool CanUndo => History.CanUndo;
     public bool CanRedo => History.CanRedo;
-    private Ds1CollisionDocument(string path)
+    private Ds1CollisionDocument(string path, byte[]? source = null)
     {
         SourcePath = Path.GetFullPath(path);
-        if (new FileInfo(path).Length > 64 * 1024 * 1024) throw new InvalidDataException("DS1 exceeds 64 MiB.");
-        bytes = File.ReadAllBytes(path); saved = bytes.ToArray();
+        if (source is null && new FileInfo(path).Length > 64 * 1024 * 1024) throw new InvalidDataException("DS1 exceeds 64 MiB.");
+        bytes = source?.ToArray() ?? File.ReadAllBytes(path); saved = bytes.ToArray();
         using var reader = new BinaryReader(new MemoryStream(bytes, false));
         Version = reader.ReadInt32();
         if (Version is < 16 or > 18) throw new InvalidDataException("Collision editing supports DS1 versions 16–18.");

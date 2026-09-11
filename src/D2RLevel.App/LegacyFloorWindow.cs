@@ -38,6 +38,7 @@ public sealed partial class LegacyFloorWindow : Window
         controls.Children.Add(new TextBlock { Text = "Zoom", VerticalAlignment = VerticalAlignment.Center }); controls.Children.Add(zoom);
         zoom.ValueChanged += (_, _) => ResizeImage();
         InitializeCollision(root);
+        InitializeGround(root);
         InitializeFootprint(root, footprint);
         InitializeGameplay(root);
         InitializePaths(root);
@@ -95,7 +96,7 @@ public sealed partial class LegacyFloorWindow : Window
                 if (layers[l].IsChecked != true) continue;
                 for (int y = 0; y < scene.Map.Height; y++) for (int x = 0; x < scene.Map.Width; x++)
                 {
-                    var cell = scene.Map.Layers[l][y * scene.Map.Width + x]; if (cell.IsEmpty) continue;
+                    var cell = scene.FloorAt(l, x, y); if (cell.IsEmpty) continue;
                     double px = (x - y + scene.Map.Height - 1) * 80, py = (x + y) * 40;
                     if (scene.Tiles.TryGetValue((cell.Main, cell.Sub), out var variants)) dc.DrawImage(Bitmap(variants[0]), new Rect(px, py, 160, 80));
                     else dc.DrawGeometry(Brushes.DarkMagenta, null, Diamond(px, py));

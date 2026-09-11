@@ -123,12 +123,14 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
     byte[] Palette, string Ds1Path, string[] Dt1Paths, uint Mask)
 {
     public LegacyCollision? Collision { get; init; }
-    public int MissingCells => Map.Layers.Sum(l => l.Count(c => !c.IsEmpty && !Tiles.ContainsKey((c.Main, c.Sub))));
+    public FloorCell FloorAt(int layer, int x, int y) => Collision is { } c
+        ? new(c.Document.Cell(c.Document.Floors[layer], x, y)) : Map.Layers[layer][y * Map.Width + x];
+    public int MissingCells => Enumerable.Range(0, Map.Layers.Length).Sum(l =>
+        Enumerable.Range(0, Map.Width * Map.Height).Count(i => { var c = FloorAt(l, i % Map.Width, i / Map.Width); return !c.IsEmpty && !Tiles.ContainsKey((c.Main, c.Sub)); }));
 
-    public static LegacyFloorScene Load(string ds1Path, AssetResolver resolver, CancellationToken token, string? contextDataRoot = null)
+    public static LegacyFloorScene Load(string ds1Path, AssetResolver resolver, CancellationToken token, string? contextDataRoot = null, LevelTileset? context = null)
     {
         string Normalize(string p) => p.Replace('\\', '/').ToLowerInvariant();
-        var relative = Normalize(PresetPairing.RelativeDs1(ds1Path, resolver));
         var overrideRoot = contextDataRoot ?? PresetPairing.Split(ds1Path, "global/tiles")?.DataRoot;
         string Resolve(string path)
         {
@@ -140,6 +142,17 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
             }
             return fallback;
         }
+        string[] paths;
+        uint mask;
+        if (context is not null)
+        {
+            context.Validate();
+            mask = context.Mask;
+            paths = context.Files.Select(Resolve).ToArray();
+        }
+        else
+        {
+        var relative = Normalize(PresetPairing.RelativeDs1(ds1Path, resolver));
         var presets = Table(Resolve("data/global/excel/lvlprest.txt"));
         var matches = presets.Where(r => Enumerable.Range(1, 6).Any(i => r.TryGetValue($"File{i}", out var f) && Normalize(f) == relative)).ToArray();
         if (matches.Length != 1) throw new InvalidDataException("DS1 must uniquely match a LvlPrest File1–6 entry inside the extraction's global/tiles folder.");
@@ -148,10 +161,11 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
         if (levelId == "0") throw new InvalidDataException("This preset needs explicit level context; only fixed LevelId presets are supported yet.");
         var level = Table(Resolve("data/global/excel/levels.txt")).Single(r => r.GetValueOrDefault("Id") == levelId);
         var type = Table(Resolve("data/global/excel/lvltypes.txt")).Single(r => r.GetValueOrDefault("Id") == level["LevelType"]);
-        uint mask = uint.Parse(preset["Dt1Mask"], System.Globalization.CultureInfo.InvariantCulture);
-        var paths = Enumerable.Range(0, 32).Where(i => (mask & (1u << i)) != 0)
+        mask = uint.Parse(preset["Dt1Mask"], System.Globalization.CultureInfo.InvariantCulture);
+        paths = Enumerable.Range(0, 32).Where(i => (mask & (1u << i)) != 0)
             .Select(i => type[$"File {i + 1}"]).Where(p => p.Length > 0 && p != "0")
             .Select(p => Resolve("data/global/tiles/" + p.Replace('\\', '/'))).ToArray();
+        }
         var tiles = new List<Dt1Floor>();
         foreach (var path in paths) { token.ThrowIfCancellationRequested(); tiles.AddRange(Dt1Reader.LoadFloors(path)); }
         var map = Ds1Floors.Load(ds1Path);

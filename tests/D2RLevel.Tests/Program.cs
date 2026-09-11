@@ -2,6 +2,12 @@ using System.Text.Json.Nodes;
 using D2RLevel.Core;
 using D2RLevel.Assets;
 
+if (args.Length > 0 && args[0] == "--terrain-export-probe")
+{
+    if (args.Length != 4) throw new ArgumentException("Expected model path, granny DLL and a fresh output directory.");
+    TerrainExportProbe.Run(args[1], args[2], args[3]); return;
+}
+
 if (args.Length > 0 && args[0] == "--gameplay-audit")
 {
     int maps = 0, units = 0, paths = 0, moved = 0, warnings = 0, unsupported = 0, editedPaths = 0, blockedPaths = 0;
@@ -271,6 +277,7 @@ try
     LinkRepairChecks.Run(folder, Check, Throws);
     PathChecks.Run(folder, Check, Throws);
     CalibrationChecks.Run(folder, Check, Throws);
+    AuthoringChecks.Run(folder, Check, Throws);
     var pairBase = Path.Combine(folder, "pair-base"); var pairMod = Path.Combine(folder, "pair-mod");
     foreach (var root in new[] { pairBase, pairMod })
     {

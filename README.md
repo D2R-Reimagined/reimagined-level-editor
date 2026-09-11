@@ -4,6 +4,10 @@ A Windows level editor for Diablo II: Resurrected, built with C# and .NET 10. Ed
 
 ## Features
 
+- New level projects with a retained terrain/environment scaffold, fresh DS1 gameplay, explicit tilesets and optional retained scenery.
+- Ground tile palette with pencil, erase, picker, fill and rectangle tools; whole-stroke undo and protected linked footprints.
+- Insert template gameplay units, delete unlinked units and create their first patrol; structural edits preserve other links.
+- Compact File, Create, View and Assets menus, with Save and Undo/Redo kept on the toolbar.
 - Workspace scene browser with paired JSON/DS1 discovery, search and recent workspaces.
 - Textured model preview, model explorer, placement, transforms and deletion.
 - Terrain toggle and terrain lock, inline collision preview and a separate interactive DS1 window.
@@ -49,6 +53,19 @@ dotnet run --project src/D2RLevel.App -- --preset 'C:\maps\town.json' --data 'C:
 5. **Workspace Explorer** returns to the list and prompts before discarding edits. Manually opened presets retain the separate export-copy workflow.
 
 Saves stage and validate files before replacement. A failed replacement attempts to restore earlier files; the three-file operation is not atomic against crashes or power loss. Keep backups and validate edits in-game.
+
+## Create a level
+
+1. Choose **Assets → Asset folder**. Open a fixed paired scene, or use **New level** and select a template when prompted.
+2. Choose **New level**, enter a project name and starting floor, and choose whether to keep existing scenery. The initial size matches the template terrain. Empty ground is allowed.
+3. Choose a parent folder. The editor creates a new folder containing a `data` workspace; it never replaces an existing project folder. Terrain, environment and unknown components remain; known standalone scenery is cleared by default. Hierarchies are preserved intact.
+4. Open **Ground / gameplay**. Choose **Paint floor**, **Erase floor**, **Pick floor**, **Fill floor** or **Rectangle floor**, select a tile/layer and draw. Pencil/erase support brush sizes. Release commits one stroke; Escape or lost capture cancels. Palette thumbnails show the first available tile variant.
+5. Use **Create → Place model** for scenery, or **Place unit** in the gameplay window for a template gameplay record. Gameplay choices preserve the template's type, ID and flags. New NPC types may initially appear as markers; **Assets → Reload assets** loads their available character previews. **Delete unit** refuses linked units; delete the linked HD object or unlink first.
+6. **Save Scene** writes the pair and links. Reopen through Load Workspace or Open preset; `.rle-project.json` supplies the explicit tileset and project name without requiring filename-based table inference.
+
+New projects contain fresh floor/gameplay data and **no walls or entrances**. They retain the template's game-relative filenames and do not register a new area ID. The copied DT1 files, palette and available gameplay tables preserve the template context; HD overrides referenced by the preset are carried when creating from a mod. Other game assets still come from your extracted asset folder. Keep project files together.
+
+Ground tools change DS1 tiles and collision. They do not sculpt the HD mesh or reproduce the game's biome shader. The DS1 window and inspector read edits immediately; reloading assets refreshes the approximate terrain projection where available. Do not install a blank project over a working map expecting its entrances to remain. Entry/exit authoring and in-game validation are still required before a project is playable. See the [authoring plan and execution status](docs/new-level-authoring-plan.md).
 
 ## Controls
 
@@ -142,8 +159,8 @@ Sidecars are written at version 2, which adds the stored grid calibration and na
 - Terrain uses existing meshes; untextured terrain can use projected DS1/DT1 floor graphics as an approximate reference. This is not a terrain asset writer or the game's biome shader.
 - Collision tools edit supported DS1 overrides. Clearing an override cannot remove DT1/wall blocking. Variant-dependent and unresolved cells are indicated separately.
 - DS1 editing supports versions 16–18. Unsupported gameplay layouts remain preserved but cannot be edited. Unit IDs are displayed as raw IDs.
-- Parent transforms, new gameplay-unit insertion, warp/vis editing, DT1 writing, arbitrary per-subtile painting and new-level authoring are outside the current scope.
-- Patrol editing covers points, their actions and creating a path for a unit that has none. What each action code makes a unit do is not established here, and a DS1 that stores no patrol block at all cannot be given its first path.
+- Parent transforms, warp/vis editing, DT1 writing, arbitrary per-subtile painting, map resizing and independent area registration are not implemented. New-level authoring currently uses fixed template dimensions, DS1 floor brushes and template gameplay placements.
+- Patrol editing covers points, their actions and creating a path for a unit that has none. Newly created DS1s include an empty patrol block for first-path creation. What each action code makes a unit do is not established here, and an imported DS1 that stores no patrol block at all cannot be given its first path.
 - Native mesh decoding must finish before cancellation takes effect. Large scenes use reduced detail and batching; performance varies with assets and hardware.
 - Grid calibration solves a single scale through a shared origin. A scene whose HD origin is offset from its DS1 origin, or whose axes are not aligned, reports a large drift rather than modelling that offset.
 

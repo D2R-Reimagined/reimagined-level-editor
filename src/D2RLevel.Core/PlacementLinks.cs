@@ -221,6 +221,43 @@ public sealed class PlacementLinks
     }
     public void ConnectWorkspace() { EnsureReady(); Activate(); }
 
+    public int PaintFloor(int layer, IEnumerable<(int X, int Y)> cells, uint tile)
+    {
+        EnsureReady(); ValidateStructure(); Activate();
+        int changed = 0;
+        json.History.Transaction(() =>
+        {
+            changed = ds1.PaintFloorCore(layer, cells, tile);
+            if (changed > 0) ChangeMetadata(Upgraded() with { Fingerprint = ds1.LinkFingerprint() }, null);
+        });
+        return changed;
+    }
+
+    public int AppendUnit(int type, int id, int x, int y, uint flags = 0)
+    {
+        EnsureReady(); ValidateStructure(); Activate();
+        int index = -1;
+        json.History.Transaction(() =>
+        {
+            index = ds1.AppendUnitCore(type, id, x, y, flags);
+            ChangeMetadata(Upgraded() with { Fingerprint = ds1.LinkFingerprint() }, null);
+        });
+        return index;
+    }
+
+    public void DeleteUnit(int index)
+    {
+        EnsureReady(); ValidateStructure(); Activate();
+        if (index < 0 || index >= ds1.Units.Count) throw new ArgumentOutOfRangeException(nameof(index));
+        if (Links.Any(l => l.Unit?.Index == index)) throw new InvalidOperationException("This unit has an HD link. Delete its linked object or unlink it first.");
+        json.History.Transaction(() =>
+        {
+            ds1.DeleteLinkedUnit(index);
+            var remaining = Links.Select(l => l.Unit is { } u && u.Index > index ? l with { Unit = u with { Index = u.Index - 1 } } : l).ToArray();
+            ChangeMetadata(Upgraded() with { Links = remaining, Fingerprint = ds1.LinkFingerprint() }, null);
+        });
+    }
+
     /// <summary>Brings a version 1 file to the current version, restating its fingerprint
     /// in the current form so the upgraded file validates against the same DS1.</summary>
     private PlacementLinkFile Upgraded() => file.Version == CurrentVersion ? file
