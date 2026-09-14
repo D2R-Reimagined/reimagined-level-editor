@@ -28,7 +28,10 @@
   -->
   <Target Name="UpdateTranslations" BeforeTargets="BeforeBuild"
           Condition="'$(UpdateTranslations)' != 'false' and '$(DesignTimeBuild)' != 'true' and Exists('$(MSBuildProjectDirectory)/../../tests/D2RLevel.Tests/D2RLevel.Tests.csproj')">
-    <MSBuild Projects="$(MSBuildProjectDirectory)/../../tests/D2RLevel.Tests/D2RLevel.Tests.csproj" Targets="Build">
+    <!-- The extractor runs on the build host. Do not inherit the application's
+         publish runtime or package output directory; restore its own dependency graph. -->
+    <MSBuild Projects="$(MSBuildProjectDirectory)/../../tests/D2RLevel.Tests/D2RLevel.Tests.csproj" Targets="Restore;Build"
+             RemoveProperties="RuntimeIdentifier;RuntimeIdentifiers;SelfContained;PublishSelfContained;PublishSingleFile;PublishProfile;BaseOutputPath">
       <Output TaskParameter="TargetOutputs" ItemName="TranslationTool" />
     </MSBuild>
     <PropertyGroup>
