@@ -1,4 +1,4 @@
-<Window x:Class="D2RLevel.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:D2RLevel.App"
+<Window x:Class="D2RLevel.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:D2RLevel.App" xmlns:l="clr-namespace:D2RLevel.App"
   Title="Reimagined Level Editor" Icon="Assets/ReimaginedLevelEditor.ico" Width="1500" Height="930" MinWidth="1100" MinHeight="700" Background="#141B23" Foreground="#E6EDF4">
   <DockPanel>
     <Border DockPanel.Dock="Top" Background="#202833" Padding="12,8">
@@ -6,47 +6,49 @@
         <WrapPanel x:Name="Toolbar">
           <TextBlock Text="REIMAGINED" FontWeight="Bold" FontSize="18" VerticalAlignment="Center" Margin="4,0,18,0"/>
           <Menu Background="Transparent" Foreground="#E6EDF4" VerticalAlignment="Center">
-            <MenuItem Header="_File">
-              <MenuItem Header="New level from this scene…" Click="NewLevel_Click"/>
+            <MenuItem Header="{l:T '_File'}">
+              <MenuItem Header="{l:T 'New level from this scene…'}" Click="NewLevel_Click"/>
               <Separator Style="{StaticResource MenuSeparator}"/>
-              <MenuItem Header="Load workspace…" Click="LoadWorkspace_Click"/>
-              <MenuItem x:Name="WorkspaceExplorerButton" Header="Workspace Explorer" Click="WorkspaceExplorer_Click" IsEnabled="False"/>
-              <MenuItem Header="Open preset…" Click="Open_Click"/>
+              <MenuItem Header="{l:T 'Load workspace…'}" Click="LoadWorkspace_Click"/>
+              <MenuItem x:Name="WorkspaceExplorerButton" Header="{l:T 'Workspace Explorer'}" Click="WorkspaceExplorer_Click" IsEnabled="False"/>
+              <MenuItem Header="{l:T 'Open preset…'}" Click="Open_Click"/>
               <Separator Style="{StaticResource MenuSeparator}" Visibility="{Binding Visibility, ElementName=SaveCopyButton}"/>
-              <MenuItem x:Name="SaveCopyButton" Header="Save copy…" Click="Save_Click"/>
+              <MenuItem x:Name="SaveCopyButton" Header="{l:T 'Save copy…'}" Click="Save_Click"/>
             </MenuItem>
-            <MenuItem Header="_Create">
-              <MenuItem Header="New level from this scene…" Click="NewLevel_Click"/>
-              <MenuItem Header="Place model…" Click="Models_Click"/>
-              <MenuItem Header="Draw ground / edit gameplay…" Click="Floors_Click"/>
+            <MenuItem Header="{l:T '_Create'}">
+              <MenuItem Header="{l:T 'New level from this scene…'}" Click="NewLevel_Click"/>
+              <MenuItem Header="{l:T 'Place model…'}" Click="Models_Click"/>
+              <MenuItem Header="{l:T 'Draw ground / edit gameplay…'}" Click="Floors_Click"/>
             </MenuItem>
-            <MenuItem Header="_View">
-              <MenuItem Header="Focus selected area" Click="FocusArea_Click"/>
+            <MenuItem Header="{l:T '_View'}">
+              <MenuItem Header="{l:T 'Focus selected area'}" Click="FocusArea_Click"/>
               <Separator Style="{StaticResource MenuSeparator}"/>
-              <MenuItem x:Name="ShowNpcs" Header="NPCs" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="Npcs_Click"/>
-              <MenuItem x:Name="ShowTerrain" Header="Terrain" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="Terrain_Click"/>
-              <MenuItem x:Name="LockTerrain" Header="Lock terrain" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="LockTerrain_Click" ToolTip="Protect terrain from selection and movement in the viewport."/>
-              <MenuItem x:Name="FullDetail" Header="Full detail (slower)" IsCheckable="True" Click="Detail_Click"/>
+              <MenuItem x:Name="ShowNpcs" Header="{l:T 'NPCs'}" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="Npcs_Click"/>
+              <MenuItem x:Name="ShowTerrain" Header="{l:T 'Terrain'}" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="Terrain_Click"/>
+              <MenuItem x:Name="LockTerrain" Header="{l:T 'Lock terrain'}" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="LockTerrain_Click" ToolTip="{l:T 'Protect terrain from selection and movement in the viewport.'}"/>
+              <MenuItem x:Name="FullDetail" Header="{l:T 'Full detail (slower)'}" IsCheckable="True" Click="Detail_Click"/>
+              <Separator Style="{StaticResource MenuSeparator}"/>
+              <MenuItem x:Name="LanguageMenu" Header="{l:T 'Language'}" ToolTip="{l:T 'Translations live in the lang folder next to the editor. The change applies after a restart.'}"/>
             </MenuItem>
-            <MenuItem Header="_Assets">
-              <MenuItem Header="Asset folder…" Click="Root_Click"/>
-              <MenuItem Header="Reload assets" Click="Reload_Click"/>
-              <MenuItem Header="Missing assets…" Click="Audit_Click"/>
-              <MenuItem Header="Model explorer…" Click="Models_Click"/>
+            <MenuItem Header="{l:T '_Assets'}">
+              <MenuItem Header="{l:T 'Asset folder…'}" Click="Root_Click"/>
+              <MenuItem Header="{l:T 'Reload assets'}" Click="Reload_Click"/>
+              <MenuItem Header="{l:T 'Missing assets…'}" Click="Audit_Click"/>
+              <MenuItem Header="{l:T 'Model explorer…'}" Click="Models_Click"/>
             </MenuItem>
           </Menu>
-            <Button Content="New level…" Click="NewLevel_Click"/>
-            <Button x:Name="SaveSceneButton" Content="Save Scene" Click="SaveScene_Click" IsEnabled="False"/>
-            <Button x:Name="UndoButton" Content="Undo" Click="Undo_Click"/><Button x:Name="RedoButton" Content="Redo" Click="Redo_Click"/>
-            <Button Content="Ground / gameplay…" Click="Floors_Click"/>
+            <Button Content="{l:T 'New level…'}" Click="NewLevel_Click"/>
+            <Button x:Name="SaveSceneButton" Content="{l:T 'Save Scene'}" Click="SaveScene_Click" IsEnabled="False"/>
+            <Button x:Name="UndoButton" Content="{l:T 'Undo'}" Click="Undo_Click"/><Button x:Name="RedoButton" Content="{l:T 'Redo'}" Click="Redo_Click"/>
+            <Button Content="{l:T 'Ground / gameplay…'}" Click="Floors_Click"/>
         </WrapPanel>
-        <TextBlock x:Name="PathLabel" Text="Open an extracted HD preset JSON to begin." Foreground="#9AAFC4" Margin="4,8,4,0" TextTrimming="CharacterEllipsis"/>
-        <TextBlock x:Name="DecoderNotice" Text="Model decoder unavailable — restore Native/granny2.dll from the application package and restart." Foreground="#FFD28A" Margin="4,6,4,0" TextWrapping="Wrap"/>
+        <TextBlock x:Name="PathLabel" Text="{l:T 'Open an extracted HD preset JSON to begin.'}" Foreground="#9AAFC4" Margin="4,8,4,0" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="DecoderNotice" Text="{l:T 'Model decoder unavailable — restore Native/granny2.dll from the application package and restart.'}" Foreground="#FFD28A" Margin="4,6,4,0" TextWrapping="Wrap"/>
       </StackPanel>
     </Border>
     <Border DockPanel.Dock="Bottom" Background="#202833" Padding="12,6">
-      <DockPanel><Button x:Name="CancelButton" DockPanel.Dock="Right" Content="Cancel load" Visibility="Collapsed" Click="Cancel_Click"/>
-        <TextBlock x:Name="Status" Text="Ready · HD placement and DS1 gameplay workspace" VerticalAlignment="Center" TextWrapping="Wrap"/>
+      <DockPanel><Button x:Name="CancelButton" DockPanel.Dock="Right" Content="{l:T 'Cancel load'}" Visibility="Collapsed" Click="Cancel_Click"/>
+        <TextBlock x:Name="Status" Text="{l:T 'Ready · HD placement and DS1 gameplay workspace'}" VerticalAlignment="Center" TextWrapping="Wrap"/>
       </DockPanel>
     </Border>
     <Grid>
@@ -54,11 +56,11 @@
       <Border Grid.Column="0" Background="#202833" Padding="10">
         <Grid>
         <DockPanel x:Name="WorkspaceBrowser" Visibility="Collapsed">
-          <TextBlock DockPanel.Dock="Top" Text="WORKSPACE SCENES" FontWeight="Bold" Margin="4,8"/>
-          <ComboBox x:Name="RecentWorkspaces" DockPanel.Dock="Top" SelectionChanged="RecentWorkspaces_SelectionChanged" ToolTip="Recently opened workspaces">
+          <TextBlock DockPanel.Dock="Top" Text="{l:T 'WORKSPACE SCENES'}" FontWeight="Bold" Margin="4,8"/>
+          <ComboBox x:Name="RecentWorkspaces" DockPanel.Dock="Top" SelectionChanged="RecentWorkspaces_SelectionChanged" ToolTip="{l:T 'Recently opened workspaces'}">
             <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Foreground="Black" TextTrimming="CharacterEllipsis" ToolTip="{Binding}"/></DataTemplate></ComboBox.ItemTemplate>
           </ComboBox>
-          <TextBox x:Name="WorkspaceSearch" DockPanel.Dock="Top" TextChanged="WorkspaceSearch_Changed" ToolTip="Filter scenes by relative path"/>
+          <TextBox x:Name="WorkspaceSearch" DockPanel.Dock="Top" TextChanged="WorkspaceSearch_Changed" ToolTip="{l:T 'Filter scenes by relative path'}"/>
           <TextBlock x:Name="WorkspaceCount" DockPanel.Dock="Bottom" Foreground="#9AAFC4" Margin="4,8" TextWrapping="Wrap"/>
           <ListBox x:Name="WorkspaceScenes" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="WorkspaceScenes_SelectionChanged" VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.Template>
@@ -93,8 +95,8 @@
           </ListBox>
         </DockPanel>
         <DockPanel x:Name="EntityBrowser">
-          <TextBlock DockPanel.Dock="Top" Text="SCENE ENTITIES" FontWeight="Bold" Margin="4,8"/>
-          <TextBox x:Name="Search" DockPanel.Dock="Top" ToolTip="Filter names and model paths" TextChanged="Search_Changed"/>
+          <TextBlock DockPanel.Dock="Top" Text="{l:T 'SCENE ENTITIES'}" FontWeight="Bold" Margin="4,8"/>
+          <TextBox x:Name="Search" DockPanel.Dock="Top" ToolTip="{l:T 'Filter names and model paths'}" TextChanged="Search_Changed"/>
           <TextBlock x:Name="EntityCount" DockPanel.Dock="Bottom" Foreground="#9AAFC4" Margin="4,8"/>
           <ListBox x:Name="Hierarchy" SelectionMode="Extended" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">
             <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Padding="4,5" ToolTip="{Binding PreviewModel}"/></DataTemplate></ListBox.ItemTemplate>
@@ -105,23 +107,23 @@
       <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#111821"/>
       <Border x:Name="WorkspaceLanding" Grid.Column="2" Grid.ColumnSpan="3" Visibility="Collapsed" Margin="28" Padding="28" Background="#202833" VerticalAlignment="Top">
         <StackPanel>
-          <TextBlock Text="Workspace Explorer" FontSize="26" Margin="0,0,0,16"/>
-          <TextBlock Text="Choose a scene on the left to open its preset and DS1 together." TextWrapping="Wrap" FontSize="16" Margin="0,0,0,12"/>
-          <TextBlock Text="Save Scene writes both maps and their links back to this workspace. Your asset folder stays independent." TextWrapping="Wrap" Foreground="#9AAFC4"/>
+          <TextBlock Text="{l:T 'Workspace Explorer'}" FontSize="26" Margin="0,0,0,16"/>
+          <TextBlock Text="{l:T 'Choose a scene on the left to open its preset and DS1 together.'}" TextWrapping="Wrap" FontSize="16" Margin="0,0,0,12"/>
+          <TextBlock Text="{l:T 'Save Scene writes both maps and their links back to this workspace. Your asset folder stays independent.'}" TextWrapping="Wrap" Foreground="#9AAFC4"/>
         </StackPanel>
       </Border>
       <Grid Grid.Column="2" x:Name="ScenePanel">
         <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="150"/></Grid.RowDefinitions>
         <local:SceneViewport x:Name="Scene"/>
         <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="12" Background="#D9202833" Padding="10" IsHitTestVisible="False">
-          <StackPanel><TextBlock Text="HD PRESET PREVIEW" FontWeight="Bold"/>
-            <TextBlock Text="Right drag: look · Wheel: move forward/back · Middle drag: pan" Foreground="#A9BED2" Margin="0,4,0,0"/>
-            <TextBlock Text="Alt + right drag: orbit selection · Shift: faster travel · Ctrl: finer travel" Foreground="#A9BED2"/>
-            <TextBlock Text="Ctrl-click: select multiple · Left drag: move selection · Esc: cancel drag · F: frame selected · Home: frame all" Foreground="#A9BED2"/>
+          <StackPanel><TextBlock Text="{l:T 'HD PRESET PREVIEW'}" FontWeight="Bold"/>
+            <TextBlock Text="{l:T 'Right drag: look · Wheel: move forward/back · Middle drag: pan'}" Foreground="#A9BED2" Margin="0,4,0,0"/>
+            <TextBlock Text="{l:T 'Alt + right drag: orbit selection · Shift: faster travel · Ctrl: finer travel'}" Foreground="#A9BED2"/>
+            <TextBlock Text="{l:T 'Ctrl-click: select multiple · Left drag: move selection · Esc: cancel drag · F: frame selected · Home: frame all'}" Foreground="#A9BED2"/>
           </StackPanel>
         </Border>
         <Border Grid.Row="1" Background="#18212B" Padding="10">
-          <DockPanel><TextBlock DockPanel.Dock="Top" Text="ASSET DIAGNOSTICS" FontWeight="Bold" Margin="0,0,0,6"/>
+          <DockPanel><TextBlock DockPanel.Dock="Top" Text="{l:T 'ASSET DIAGNOSTICS'}" FontWeight="Bold" Margin="0,0,0,6"/>
             <TextBox x:Name="Diagnostics" IsReadOnly="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" BorderThickness="0" FontFamily="Consolas" FontSize="11"/>
           </DockPanel>
         </Border>
@@ -133,39 +135,39 @@
             <local:Ds1InspectorPreview x:Name="Ds1Preview" Margin="0,0,0,14"/>
             <TextBlock x:Name="LinkStatus" TextWrapping="Wrap" Foreground="#E4BA74" Margin="0,4"/>
             <WrapPanel>
-              <Button x:Name="ToggleLinkButton" Content="Link in DS1…" Click="ToggleLink_Click" IsEnabled="False"/>
-              <Button x:Name="EditCollisionButton" Content="Add collision…" Click="EditCollision_Click" IsEnabled="False"/>
-              <Button x:Name="AlignUnitButton" Content="Align linked unit to HD" Click="AlignUnit_Click" Visibility="Collapsed"/>
-              <Button x:Name="SavePairButton" Content="Save linked pair…" Click="SavePair_Click"/>
-              <Button x:Name="ReviewLinksButton" Content="Review broken links…" Visibility="Collapsed" Click="ReviewLinks_Click"
-                      ToolTip="Some links no longer match this pair. Review them individually; every other link keeps working."/>
-              <Button Content="Reset invalid links…" x:Name="ResetLinksButton" Visibility="Collapsed" Click="ResetLinks_Click"/>
+              <Button x:Name="ToggleLinkButton" Content="{l:T 'Link in DS1…'}" Click="ToggleLink_Click" IsEnabled="False"/>
+              <Button x:Name="EditCollisionButton" Content="{l:T 'Add collision…'}" Click="EditCollision_Click" IsEnabled="False"/>
+              <Button x:Name="AlignUnitButton" Content="{l:T 'Align linked unit to HD'}" Click="AlignUnit_Click" Visibility="Collapsed"/>
+              <Button x:Name="SavePairButton" Content="{l:T 'Save linked pair…'}" Click="SavePair_Click"/>
+              <Button x:Name="ReviewLinksButton" Content="{l:T 'Review broken links…'}" Visibility="Collapsed" Click="ReviewLinks_Click"
+                      ToolTip="{l:T 'Some links no longer match this pair. Review them individually; every other link keeps working.'}"/>
+              <Button Content="{l:T 'Reset invalid links…'}" x:Name="ResetLinksButton" Visibility="Collapsed" Click="ResetLinks_Click"/>
             </WrapPanel>
             <TextBlock x:Name="GroupStatus" TextWrapping="Wrap" Foreground="#A9BED2" Margin="0,10,0,4"/>
-              <TextBox x:Name="GroupName" Text="Asset group" ToolTip="Name for the saved selection group" MaxLength="100"/>
-              <WrapPanel><Button x:Name="GroupButton" Content="Group selected" Click="Group_Click"/><Button x:Name="UngroupButton" Content="Ungroup" Click="Ungroup_Click"/></WrapPanel>
-              <TextBlock Text="INSPECTOR" FontWeight="Bold" Margin="0,8"/>
-            <TextBlock x:Name="SelectedName" Text="Select an entity" FontSize="18" TextWrapping="Wrap"/>
+              <TextBox x:Name="GroupName" Text="{l:T 'Asset group'}" ToolTip="{l:T 'Name for the saved selection group'}" MaxLength="100"/>
+              <WrapPanel><Button x:Name="GroupButton" Content="{l:T 'Group selected'}" Click="Group_Click"/><Button x:Name="UngroupButton" Content="{l:T 'Ungroup'}" Click="Ungroup_Click"/></WrapPanel>
+              <TextBlock Text="{l:T 'INSPECTOR'}" FontWeight="Bold" Margin="0,8"/>
+            <TextBlock x:Name="SelectedName" Text="{l:T 'Select an entity'}" FontSize="18" TextWrapping="Wrap"/>
             <TextBlock x:Name="SelectedInfo" Foreground="#9AAFC4" TextWrapping="Wrap" Margin="0,6"/>
             <TextBlock x:Name="ModelLabel" TextWrapping="Wrap" FontSize="11" Foreground="#9AAFC4"/>
             <StackPanel x:Name="TransformPanel" IsEnabled="False">
-              <GroupBox Header="Position · native D2R coordinates"><UniformGrid Columns="3">
-                <StackPanel><TextBlock Text="X"/><TextBox x:Name="PX"/></StackPanel><StackPanel><TextBlock Text="Y (up)"/><TextBox x:Name="PY"/></StackPanel><StackPanel><TextBlock Text="Z"/><TextBox x:Name="PZ"/></StackPanel>
+              <GroupBox Header="{l:T 'Position · native D2R coordinates'}"><UniformGrid Columns="3">
+                <StackPanel><TextBlock Text="X"/><TextBox x:Name="PX"/></StackPanel><StackPanel><TextBlock Text="{l:T 'Y (up)'}"/><TextBox x:Name="PY"/></StackPanel><StackPanel><TextBlock Text="Z"/><TextBox x:Name="PZ"/></StackPanel>
               </UniformGrid></GroupBox>
-              <GroupBox Header="Orientation · quaternion"><UniformGrid Columns="2">
+              <GroupBox Header="{l:T 'Orientation · quaternion'}"><UniformGrid Columns="2">
                 <StackPanel><TextBlock Text="X"/><TextBox x:Name="QX"/></StackPanel><StackPanel><TextBlock Text="Y"/><TextBox x:Name="QY"/></StackPanel><StackPanel><TextBlock Text="Z"/><TextBox x:Name="QZ"/></StackPanel><StackPanel><TextBlock Text="W"/><TextBox x:Name="QW"/></StackPanel>
               </UniformGrid></GroupBox>
-              <GroupBox Header="Scale"><UniformGrid Columns="3">
+              <GroupBox Header="{l:T 'Scale'}"><UniformGrid Columns="3">
                 <StackPanel><TextBlock Text="X"/><TextBox x:Name="SX"/></StackPanel><StackPanel><TextBlock Text="Y"/><TextBox x:Name="SY"/></StackPanel><StackPanel><TextBlock Text="Z"/><TextBox x:Name="SZ"/></StackPanel>
               </UniformGrid></GroupBox>
-              <Button Content="Apply transform" Click="Apply_Click" Margin="0,12,0,4" Background="#28686C"/>
-              <UniformGrid Columns="2"><Button Content="X − 1" Tag="x-" Click="Nudge_Click"/><Button Content="X + 1" Tag="x+" Click="Nudge_Click"/><Button Content="Z − 1" Tag="z-" Click="Nudge_Click"/><Button Content="Z + 1" Tag="z+" Click="Nudge_Click"/></UniformGrid>
-              <Button Content="Rotate Y + 15°" Click="Rotate_Click"/>
+              <Button Content="{l:T 'Apply transform'}" Click="Apply_Click" Margin="0,12,0,4" Background="#28686C"/>
+              <UniformGrid Columns="2"><Button Content="{l:T 'X − 1'}" Tag="x-" Click="Nudge_Click"/><Button Content="{l:T 'X + 1'}" Tag="x+" Click="Nudge_Click"/><Button Content="{l:T 'Z − 1'}" Tag="z-" Click="Nudge_Click"/><Button Content="{l:T 'Z + 1'}" Tag="z+" Click="Nudge_Click"/></UniformGrid>
+              <Button Content="{l:T 'Rotate Y + 15°'}" Click="Rotate_Click"/>
             </StackPanel>
-            <Button Content="Frame selected" Click="Frame_Click"/>
-            <Button x:Name="DeleteModelButton" Content="Delete object" Click="DeleteModel_Click" ToolTip="Delete this model, its linked DS1 unit and owned collision. Shared collision stays. Undo restores everything."/>
-            <TextBlock Text="Linked models move their assigned DS1 unit or collision footprint. Unlinked models change HD visuals only. Warps and DT1 collision are not moved." Foreground="#D9B580" TextWrapping="Wrap" Margin="0,12"/>
-            <Expander Header="Preserved entity JSON" Foreground="#C7D6E5"><TextBox x:Name="RawJson" IsReadOnly="True" FontFamily="Consolas" FontSize="11" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/></Expander>
+            <Button Content="{l:T 'Frame selected'}" Click="Frame_Click"/>
+            <Button x:Name="DeleteModelButton" Content="{l:T 'Delete object'}" Click="DeleteModel_Click" ToolTip="{l:T 'Delete this model, its linked DS1 unit and owned collision. Shared collision stays. Undo restores everything.'}"/>
+            <TextBlock Text="{l:T 'Linked models move their assigned DS1 unit or collision footprint. Unlinked models change HD visuals only. Warps and DT1 collision are not moved.'}" Foreground="#D9B580" TextWrapping="Wrap" Margin="0,12"/>
+            <Expander Header="{l:T 'Preserved entity JSON'}" Foreground="#C7D6E5"><TextBox x:Name="RawJson" IsReadOnly="True" FontFamily="Consolas" FontSize="11" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/></Expander>
           </StackPanel>
         </ScrollViewer>
       </Border>

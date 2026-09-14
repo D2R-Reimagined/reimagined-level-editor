@@ -152,6 +152,13 @@ Save Scene persists workspace links. **Save linked pair…** exports both maps a
 
 Sidecars are written at version 2, which adds the stored grid calibration and narrows the fingerprint that ties a sidecar to its DS1. That fingerprint now covers only what links depend on — layer layout, dimensions and the unit records their indices address — and excludes the patrol block entirely, so editing a patrol no longer invalidates every link in the pair. Version 1 files are still validated against the older fingerprint and are upgraded the next time the pair is saved. Editor builds older than that upgrade will reject a version 2 sidecar and report links as disabled; map files are never affected.
 
+## Translations
+
+The editor's UI text is loaded from `lang/<code>.json` files next to the executable, with English as the built-in fallback. German, French, Spanish, Brazilian Portuguese, Russian and Simplified Chinese ship as machine-drafted files awaiting native review. **View → Language** lists every file found there; by default the editor follows the Windows display language when a matching file exists. A chosen language applies after a restart, and `--language <code>` forces one for a single run. Partial files are fine: anything left blank shows in English.
+
+To fix or add a language, edit or copy a file in `lang/` and open a pull request — see [lang/README.md](src/D2RLevel.App/lang/README.md). CI checks every language file against the strings the app actually uses, so a stale or mistyped entry is caught before merge. Developers wrap UI text with `L.T("…")` / `{l:T '…'}`; building the app regenerates `lang/en.json` and pads the other files, and CI fails if those regenerated files are not committed.
+
+Asset diagnostics, exception text from the map readers and the technical descriptions they produce (calibration summaries, link reasons) are not yet translated.
 ## Current limitations
 
 - Model appearance cannot establish gameplay ownership automatically. HD visuals and DS1 gameplay are separate data.
@@ -162,6 +169,7 @@ Sidecars are written at version 2, which adds the stored grid calibration and na
 - Parent transforms, warp/vis editing, DT1 writing, arbitrary per-subtile painting, map resizing and independent area registration are not implemented. New-level authoring currently uses fixed template dimensions, DS1 floor brushes and template gameplay placements.
 - Patrol editing covers points, their actions and creating a path for a unit that has none. Newly created DS1s include an empty patrol block for first-path creation. What each action code makes a unit do is not established here, and an imported DS1 that stores no patrol block at all cannot be given its first path.
 - Native mesh decoding must finish before cancellation takes effect. Large scenes use reduced detail and batching; performance varies with assets and hardware.
+- Translation covers the editor's own UI text. Diagnostics, reader exceptions and the descriptive strings produced by the core library (calibration summaries, broken-link reasons) are English-only for now.
 - Grid calibration solves a single scale through a shared origin. A scene whose HD origin is offset from its DS1 origin, or whose axes are not aligned, reports a large drift rather than modelling that offset.
 
 Use **Missing assets…** to identify files to extract. [Format notes](LEGACY-FORMATS.md) describe DS1/DT1 handling and references.

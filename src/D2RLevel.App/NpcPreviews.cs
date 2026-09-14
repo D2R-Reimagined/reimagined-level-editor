@@ -16,17 +16,17 @@ internal static class NpcPreviewLoader
         if (scene?.Collision is null) return new(visuals, []);
         NpcCatalog? catalog = null;
         try { if (assets is not null) catalog = new(assets, modRoot); }
-        catch (Exception ex) { messages.Add("NPC catalog: " + ex.Message); }
+        catch (Exception ex) { messages.Add(L.T("NPC catalog: {0}", ex.Message)); }
         foreach (var unit in scene.Collision.Document.Units.Where(u => u.Type == 1).DistinctBy(u => u.Id))
         {
             token.ThrowIfCancellationRequested();
-            string name = "Unit " + unit.Id;
+            string name = L.T("Unit {0}", unit.Id);
             try
             {
                 var definition = catalog?.Lookup(scene.Map.Act, unit);
                 name = definition?.Name ?? name;
                 if (definition?.DefinitionPath is not { } path) throw new InvalidDataException(definition?.Warning ?? "NPC tables unavailable.");
-                progress.Report("Loading NPC preview: " + name);
+                progress.Report(L.T("Loading NPC preview: {0}", name));
                 var root = JsonNode.Parse(File.ReadAllText(catalog!.Resolve(path)))!;
                 var entities = root["entities"]!.AsArray().OfType<JsonObject>().ToArray();
                 var rootTransform = entities.SelectMany(e => e["components"]!.AsArray().OfType<JsonObject>()).FirstOrDefault(c => (string?)c["type"] == "TransformDefinitionComponent");
@@ -69,9 +69,9 @@ public partial class MainWindow
             if (document is not null && ShowNpcs.IsChecked == true && pairedScene?.Collision is { } collision)
                 foreach (var unit in collision.Document.Units.Where(u => u.Type == 1))
                 {
-                    var visual = (npcAct == pairedScene.Map.Act ? npcPreview.Visuals.GetValueOrDefault(unit.Id) : null) ?? new NpcVisual("Unit " + unit.Id, SceneViewport.Placeholder(), true);
+                    var visual = (npcAct == pairedScene.Map.Act ? npcPreview.Visuals.GetValueOrDefault(unit.Id) : null) ?? new NpcVisual(L.T("Unit {0}", unit.Id), SceneViewport.Placeholder(), true);
                     double x = unit.X * Ds1Preview.UnitsPerTile / 5, z = unit.Y * Ds1Preview.UnitsPerTile / 5;
-                    string name = $"{visual.Name} · DS1 #{unit.Index}" + (visual.Missing ? " (marker)" : "");
+                    string name = L.T("{0} · DS1 #{1}", visual.Name, unit.Index) + (visual.Missing ? " " + L.T("(marker)") : "");
                     var transform = new EntityTransform(new(x, npcGround.Height(x,z), z), new(0, 0, 0, 1), new(1, 1, 1));
                     var entity = existing.TryGetValue(unit.Index, out var previous) && previous.Name == name
                         ? previous : PresetEntity.GameplayPreview(unit.Index, name, transform);
@@ -123,6 +123,6 @@ public partial class MainWindow
         placementLinks.ConnectWorkspace();
         collision.Document.MoveUnit(index, checked((int)Math.Round(transform.Position.X * 5 / Ds1Preview.UnitsPerTile)), checked((int)Math.Round(transform.Position.Z * 5 / Ds1Preview.UnitsPerTile)));
         RefreshNpcs(); PopulateInspector(); RefreshState();
-        Status.Text = "NPC position updated in DS1. Save Scene (or Save linked pair) to keep the change. Ctrl+Z to undo.";
+        Status.Text = L.T("NPC position updated in DS1. Save Scene (or Save linked pair) to keep the change. Ctrl+Z to undo.");
     }
 }

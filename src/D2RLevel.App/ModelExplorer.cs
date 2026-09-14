@@ -13,15 +13,15 @@ public sealed class ModelExplorer : Window
     private readonly PresetDocument? document;
     private readonly Action<PresetEntity> select;
     private readonly ListBox list = new() { Background = Brushes.Transparent, Foreground = Brushes.White };
-    private readonly TextBox search = new() { ToolTip = "Search model names or folders" };
+    private readonly TextBox search = new() { ToolTip = L.T("Search model names or folders") };
     private readonly TextBlock details = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10) };
     private readonly TextBlock count = new() { Margin = new Thickness(10) };
-    private readonly Button find = new() { Content = "Select placed instance", IsEnabled = false };
-    private readonly Button add = new() { Content = "Add to scene", IsEnabled = false, ToolTip = "Place this static model at the current scene focus. Left-drag it to position it." };
+    private readonly Button find = new() { Content = L.T("Select placed instance"), IsEnabled = false };
+    private readonly Button add = new() { Content = L.T("Add to scene"), IsEnabled = false, ToolTip = L.T("Place this static model at the current scene focus. Left-drag it to position it.") };
     private SceneItem? previewItem;
     private string? previewPath;
     private readonly ComboBox animations = new() { Width = 220, Foreground = Brushes.Black, Margin = new Thickness(4), IsEnabled = false };
-    private readonly Button playPause = new() { Content = "Play", Width = 70, Margin = new Thickness(4), IsEnabled = false };
+    private readonly Button playPause = new() { Content = L.T("Play"), Width = 70, Margin = new Thickness(4), IsEnabled = false };
     private readonly Slider timeline = new() { Minimum = 0, Maximum = 1, Width = 300, Margin = new Thickness(4), IsEnabled = false, VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox speed = new() { Width = 80, Foreground = Brushes.Black, Margin = new Thickness(4), IsEnabled = false };
     private readonly TextBlock animationStatus = new() { Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.LightSteelBlue };
@@ -45,7 +45,7 @@ public sealed class ModelExplorer : Window
     public ModelExplorer(AssetResolver resolver, PresetDocument? document, Action<PresetEntity> select, Action<string, SceneItem>? addModel = null)
     {
         this.resolver = resolver; this.document = document; this.select = select;
-        Title = "Model explorer · extracted HD assets"; Width = 1200; Height = 780;
+        Title = L.T("Model explorer · extracted HD assets"); Width = 1200; Height = 780;
         Background = new SolidColorBrush(Color.FromRgb(20, 27, 35));
         var root = new DockPanel { Margin = new Thickness(12) }; Content = root;
         var footer = new StackPanel(); DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
@@ -57,12 +57,12 @@ public sealed class ModelExplorer : Window
             catch (Exception ex) { details.Text = ex.Message; }
         };
         AddAvailable = document is not null && addModel is not null;
-        var heading = new TextBlock { Text = "MODEL EXPLORER · Right drag: look · Alt + right drag: orbit · Middle: pan · Wheel: move", Margin = new Thickness(8), FontSize = 16 };
+        var heading = new TextBlock { Text = L.T("MODEL EXPLORER · Right drag: look · Alt + right drag: orbit · Middle: pan · Wheel: move"), Margin = new Thickness(8), FontSize = 16 };
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
         var animationBar = BuildAnimationBar();
         DockPanel.SetDock(animationBar, Dock.Top); root.Children.Add(animationBar);
         var left = new DockPanel { Width = 430 }; DockPanel.SetDock(left, Dock.Left); root.Children.Add(left);
-        var searchLabel = new TextBlock { Text = "Search model names or folders", Margin = new Thickness(6) };
+        var searchLabel = new TextBlock { Text = L.T("Search model names or folders"), Margin = new Thickness(6) };
         DockPanel.SetDock(searchLabel, Dock.Top); left.Children.Add(searchLabel);
         DockPanel.SetDock(search, Dock.Top); left.Children.Add(search);
         DockPanel.SetDock(count, Dock.Bottom); left.Children.Add(count); left.Children.Add(list);
@@ -151,9 +151,9 @@ public sealed class ModelExplorer : Window
     private WrapPanel BuildAnimationBar()
     {
         var bar = new WrapPanel { Margin = new Thickness(4, 0, 4, 4) };
-        bar.Children.Add(new TextBlock { Text = "Animation", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) });
+        bar.Children.Add(new TextBlock { Text = L.T("Animation"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) });
         bar.Children.Add(animations); bar.Children.Add(playPause);
-        bar.Children.Add(new TextBlock { Text = "Speed", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
+        bar.Children.Add(new TextBlock { Text = L.T("Speed"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
         bar.Children.Add(speed); bar.Children.Add(timeline); bar.Children.Add(animationStatus);
 
         animations.WithReadableItems(nameof(CharacterAnimation.Name));
@@ -173,7 +173,7 @@ public sealed class ModelExplorer : Window
         {
             if (animated is null) return;
             if (animated.IsPlaying) animated.Pause(); else animated.Play();
-            playPause.Content = animated.IsPlaying ? "Pause" : "Play";
+            playPause.Content = animated.IsPlaying ? L.T("Pause") : L.T("Play");
         };
         // Dragging the timeline scrubs; the running clock writes it back through SyncTimeline.
         timeline.ValueChanged += (_, _) =>
@@ -195,8 +195,8 @@ public sealed class ModelExplorer : Window
     private void RefreshAnimationStatus()
     {
         if (animated is null) { animationStatus.Text = ""; return; }
-        animationStatus.Text = $"{animated.Time:F2}s / {animated.Duration:F2}s · {animated.Animations.Count} modes · {animated.Rig.Bones.Count} bones"
-            + (animated.UnresolvedBones.Count > 0 ? $" · {animated.UnresolvedBones.Count} bound bone(s) outside this rig stay in bind pose" : "");
+        animationStatus.Text = L.T("{0:F2}s / {1:F2}s · {2} modes · {3} bones", animated.Time, animated.Duration, animated.Animations.Count, animated.Rig.Bones.Count)
+            + (animated.UnresolvedBones.Count > 0 ? " · " + L.T("{0} bound bone(s) outside this rig stay in bind pose", animated.UnresolvedBones.Count) : "");
     }
 
     private void ClearAnimation()
@@ -204,7 +204,7 @@ public sealed class ModelExplorer : Window
         animated?.Dispose(); animated = null;
         animations.ItemsSource = null; animations.IsEnabled = false;
         playPause.IsEnabled = speed.IsEnabled = timeline.IsEnabled = false;
-        playPause.Content = "Play";
+        playPause.Content = L.T("Play");
         syncingTimeline = true;
         try { timeline.Value = 0; timeline.Maximum = 1; }
         finally { syncingTimeline = false; }
@@ -220,7 +220,7 @@ public sealed class ModelExplorer : Window
         ClearAnimation();
         var preview = AnimatedPreview.TryCreate(path, resolver, null, out var reason);
         LastAnimationNote = reason ?? "animated";
-        if (preview is null) return "Static geometry and albedo preview. " + (reason ?? "Not an animated character.");
+        if (preview is null) return L.T("Static geometry and albedo preview.") + " " + (reason ?? L.T("Not an animated character."));
         animated = preview;
         preview.Advanced += () => { SyncTimeline(); RefreshAnimationStatus(); };
         animations.ItemsSource = preview.Animations;
@@ -232,7 +232,7 @@ public sealed class ModelExplorer : Window
         animations.SelectedItem = first;
         Preview.SetScene(new([], [], 0));
         Preview.AddAnimated(preview.Model);
-        return $"Skinned character · {preview.Animations.Count} animations · {preview.Rig.Bones.Count} bones. Choose a mode and press Play.";
+        return L.T("Skinned character · {0} animations · {1} bones. Choose a mode and press Play.", preview.Animations.Count, preview.Rig.Bones.Count);
     }
 
     private IEnumerable<PresetEntity> FindInstances(string path) => document?.Entities.Where(e =>
@@ -252,7 +252,7 @@ public sealed class ModelExplorer : Window
     {
         try
         {
-            count.Text = "Indexing extracted models…";
+            count.Text = L.T("Indexing extracted models…");
             catalog = await Task.Run(() => ModelCatalog.Scan(resolver, lifetime.Token));
             if (!lifetime.IsCancellationRequested) Filter();
         }
@@ -265,10 +265,10 @@ public sealed class ModelExplorer : Window
         var terms = search.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var matches = catalog.Where(e => terms.All(t => e.Path.Contains(t, StringComparison.OrdinalIgnoreCase))).ToArray();
         list.ItemsSource = matches;
-        count.Text = $"{matches.Length:N0} / {catalog.Length:N0} models · LOD0 previews";
+        count.Text = L.T("{0:N0} / {1:N0} models · LOD0 previews", matches.Length, catalog.Length);
         previewLoad?.Cancel(); PreviewLoaded = false; find.IsEnabled = add.IsEnabled = false; previewItem = null; previewPath = null;
         ClearAnimation();
-        Preview.SetScene(new([], [], 0)); details.Text = "Select a model to preview its geometry and textures.";
+        Preview.SetScene(new([], [], 0)); details.Text = L.T("Select a model to preview its geometry and textures.");
     }
 
     public async Task LoadPreview(string path)
@@ -277,7 +277,7 @@ public sealed class ModelExplorer : Window
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         previewLoad = cts; PreviewLoaded = false; find.IsEnabled = add.IsEnabled = false; previewItem = null; previewPath = null;
         ClearAnimation();
-        Preview.SetScene(new([], [], 0)); details.Text = "Loading " + path;
+        Preview.SetScene(new([], [], 0)); details.Text = L.T("Loading {0}", path);
         try
         {
             var result = await Task.Run(() => SceneLoader.Load(PresetDocument.ModelPreview(path), resolver,
@@ -289,8 +289,8 @@ public sealed class ModelExplorer : Window
             var instances = FindInstances(path).Count();
             find.IsEnabled = instances > 0;
             // A skinned character replaces the static preview with a posable one.
-            string note = PreviewLoaded ? TryAnimate(path) : "Static geometry and albedo preview.";
-            details.Text = path + $"\n{instances} placed instance(s) in this preset · {note}\n" +
+            string note = PreviewLoaded ? TryAnimate(path) : L.T("Static geometry and albedo preview.");
+            details.Text = path + "\n" + L.T("{0} placed instance(s) in this preset · {1}", instances, note) + "\n" +
                 string.Join("\n", result.Diagnostics.Where(d => !d.StartsWith("Preview:")));
         }
         catch (OperationCanceledException) { }

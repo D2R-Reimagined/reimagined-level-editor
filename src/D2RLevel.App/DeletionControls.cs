@@ -9,8 +9,8 @@ public partial class MainWindow
     private void DeleteModel_Click(object sender, RoutedEventArgs e)
     {
         if (loading is not null || document is null || Selected is not { } entity) return;
-        if (SelectedEntities.Length > 1) { Status.Text = "Select a single model to delete it. Group deletion is not supported."; return; }
-        if (entity.GameplayUnitIndex is not null) { Status.Text = "NPC deletion is not supported in this preview yet."; return; }
+        if (SelectedEntities.Length > 1) { Status.Text = L.T("Select a single model to delete it. Group deletion is not supported."); return; }
+        if (entity.GameplayUnitIndex is not null) { Status.Text = L.T("NPC deletion is not supported in this preview yet."); return; }
         try
         {
             Scene.CancelDrag();
@@ -19,7 +19,7 @@ public partial class MainWindow
                 throw new InvalidOperationException("Load the linked DS1 before deleting this object. " + pairedStatus);
             else document.DeleteModel(entity);
             SyncHistory(entity);
-            Notify("Object deleted", entity.Name + "\nLinked unit and owned collision removed, if present. Shared collision preserved. Ctrl+Z to undo.");
+            Notify(L.T("Object deleted"), entity.Name + "\n" + L.T("Linked unit and owned collision removed, if present. Shared collision preserved. Ctrl+Z to undo."));
         }
         catch (Exception ex) { Error(ex); }
     }

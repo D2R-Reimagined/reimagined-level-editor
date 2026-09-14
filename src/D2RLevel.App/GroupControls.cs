@@ -41,12 +41,12 @@ public partial class MainWindow
     {
         if (GroupButton is null) return;
         var members = SelectedEntities;
-        GroupStatus.Text = members.Length > 1 ? $"{members.Length} assets selected - drag any selected model to move them together." : "Ctrl-click models to select several. Shift-click adds to the selection.";
-        if (Selected is { } selected && assetGroups?.Find(selected) is { } group) GroupStatus.Text += "\nGroup: " + group.Name;
+        GroupStatus.Text = members.Length > 1 ? L.T("{0} assets selected - drag any selected model to move them together.", members.Length) : L.T("Ctrl-click models to select several. Shift-click adds to the selection.");
+        if (Selected is { } selected && assetGroups?.Find(selected) is { } group) GroupStatus.Text += "\n" + L.T("Group: {0}", group.Name);
         if (assetGroups?.Warning is { } warning) GroupStatus.Text += "\n" + warning;
         GroupButton.IsEnabled = loading is null && assetGroups?.Warning is null && members.Length > 1 && members.All(GroupMovement.CanGroup);
         UngroupButton.IsEnabled = loading is null && members.Any(e => assetGroups?.Find(e) is not null);
-        if (members.Length > 1 && members.Any(e => !GroupMovement.CanGroup(e))) GroupStatus.Text = "Select only unparented HD models for group movement. NPCs and terrain must be selected separately.";
+        if (members.Length > 1 && members.Any(e => !GroupMovement.CanGroup(e))) GroupStatus.Text = L.T("Select only unparented HD models for group movement. NPCs and terrain must be selected separately.");
         if (members.Length > 1) { TransformPanel.IsEnabled = false; DeleteModelButton.IsEnabled = false; }
     }
     private void Group_Click(object sender, RoutedEventArgs e)
@@ -57,13 +57,13 @@ public partial class MainWindow
             var expanded = SelectedEntities.SelectMany(e => assetGroups?.Find(e) is { } group ? assetGroups.Resolve(group) : [e]).Distinct().ToArray();
             assetGroups?.Create(GroupName.Text, expanded);
             Search.Text = ""; SetSelection(expanded);
-            Notify("Group saved", $"{GroupName.Text}: {expanded.Length} assets. Click any member to select the group. Group metadata is saved beside the preset.");
+            Notify(L.T("Group saved"), L.T("{0}: {1} assets. Click any member to select the group. Group metadata is saved beside the preset.", GroupName.Text, expanded.Length));
         }
         catch (Exception ex) { Error(ex); }
     }
     private void Ungroup_Click(object sender, RoutedEventArgs e)
     {
-        try { Scene.CancelDrag(); assetGroups?.Remove(SelectedEntities); UpdateGroupControls(); Notify("Ungrouped", "Models and gameplay links are unchanged."); }
+        try { Scene.CancelDrag(); assetGroups?.Remove(SelectedEntities); UpdateGroupControls(); Notify(L.T("Ungrouped"), L.T("Models and gameplay links are unchanged.")); }
         catch (Exception ex) { Error(ex); }
     }
     private void RefreshGroupMove(PresetEntity[] members)

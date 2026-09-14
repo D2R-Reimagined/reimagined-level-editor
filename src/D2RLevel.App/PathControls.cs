@@ -10,8 +10,8 @@ namespace D2RLevel.App;
 
 public sealed partial class LegacyFloorWindow
 {
-    private readonly CheckBox editPath = new() { Content = "Edit path", Foreground = Brushes.White, Margin = new Thickness(8),
-        ToolTip = "Drag a patrol point to move it. Click empty ground to append a point, right-click a point to remove it." };
+    private readonly CheckBox editPath = new() { Content = L.T("Edit path"), Foreground = Brushes.White, Margin = new Thickness(8),
+        ToolTip = L.T("Drag a patrol point to move it. Click empty ground to append a point, right-click a point to remove it.") };
     private readonly ComboBox pathAction = new() { Width = 210, Foreground = Brushes.Black, Margin = new Thickness(4) };
     private readonly TextBlock pathStatus = new() { Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightSteelBlue };
     private int selectedPoint = -1;
@@ -37,9 +37,9 @@ public sealed partial class LegacyFloorWindow
     {
         var row = new WrapPanel(); DockPanel.SetDock(row, Dock.Top); root.Children.Add(row);
         row.Children.Add(editPath);
-        row.Children.Add(new TextBlock { Text = "Point action", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
+        row.Children.Add(new TextBlock { Text = L.T("Point action"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
         row.Children.Add(pathAction);
-        var remove = new Button { Content = "Remove point", ToolTip = "Remove the selected patrol point. Removing the last one deletes the path." };
+        var remove = new Button { Content = L.T("Remove point"), ToolTip = L.T("Remove the selected patrol point. Removing the last one deletes the path.") };
         row.Children.Add(remove);
         DockPanel.SetDock(pathStatus, Dock.Top); root.Children.Add(pathStatus);
 
@@ -131,7 +131,7 @@ public sealed partial class LegacyFloorWindow
         if (selectedPoint < 0 || selectedPoint >= doc.PatrolPoints(SelectedUnit).Count) return;
         var current = doc.PatrolPoints(SelectedUnit)[selectedPoint];
         if (current.X == x && current.Y == y) return;
-        PathEdit(() => doc.MovePathPoint(SelectedUnit, selectedPoint, x, y), $"Moved point {selectedPoint + 1} to ({x}, {y}). Ctrl+Z undoes each step.");
+        PathEdit(() => doc.MovePathPoint(SelectedUnit, selectedPoint, x, y), L.T("Moved point {0} to ({1}, {2}). Ctrl+Z undoes each step.", selectedPoint + 1, x, y));
     }
 
     private void AppendPoint(int x, int y)
@@ -143,20 +143,20 @@ public sealed partial class LegacyFloorWindow
         {
             doc.InsertPathPoint(SelectedUnit, at, x, y, action);
             selectedPoint = at;
-        }, $"Added point {at + 1} at ({x}, {y}) with action {action}.");
+        }, L.T("Added point {0} at ({1}, {2}) with action {3}.", at + 1, x, y, action));
     }
 
     private void RemoveSelectedPoint()
     {
         if (CollisionDocument is not { } doc || SelectedUnit < 0) return;
         if (selectedPoint < 0 || selectedPoint >= doc.PatrolPoints(SelectedUnit).Count)
-        { pathStatus.Text = "Select a patrol point first."; return; }
+        { pathStatus.Text = L.T("Select a patrol point first."); return; }
         int index = selectedPoint;
         PathEdit(() =>
         {
             doc.RemovePathPoint(SelectedUnit, index);
             selectedPoint = Math.Min(index, doc.PatrolPoints(SelectedUnit).Count - 1);
-        }, $"Removed point {index + 1}. Ctrl+Z restores it.");
+        }, L.T("Removed point {0}. Ctrl+Z restores it.", index + 1));
     }
 
     private void ApplyAction(uint action)
@@ -165,7 +165,7 @@ public sealed partial class LegacyFloorWindow
         if (selectedPoint < 0 || selectedPoint >= doc.PatrolPoints(SelectedUnit).Count) return;
         if (doc.PatrolPoints(SelectedUnit)[selectedPoint].Action == action) return;
         int index = selectedPoint;
-        PathEdit(() => doc.SetPathPointAction(SelectedUnit, index, action), $"Point {index + 1} now uses action {action}.");
+        PathEdit(() => doc.SetPathPointAction(SelectedUnit, index, action), L.T("Point {0} now uses action {1}.", index + 1, action));
     }
 
     private void CommitTypedAction()
@@ -175,7 +175,7 @@ public sealed partial class LegacyFloorWindow
         // Accept a bare number so a mod's own action code can be entered.
         var digits = new string(text.TakeWhile(char.IsAsciiDigit).ToArray());
         if (uint.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out uint value)) ApplyAction(value);
-        else { pathStatus.Text = "Enter a whole action number, or choose one the base game uses."; RefreshPathStatus(keepMessage: true); }
+        else { pathStatus.Text = L.T("Enter a whole action number, or choose one the base game uses."); RefreshPathStatus(keepMessage: true); }
     }
 
     private void RefreshPathStatus(bool keepMessage = false)
@@ -183,7 +183,7 @@ public sealed partial class LegacyFloorWindow
         if (CollisionDocument is not { } doc || SelectedUnit < 0)
         {
             editPath.IsEnabled = pathAction.IsEnabled = false;
-            if (!keepMessage) pathStatus.Text = "Select a DS1 unit to inspect or edit its patrol path.";
+            if (!keepMessage) pathStatus.Text = L.T("Select a DS1 unit to inspect or edit its patrol path.");
             return;
         }
         string? warning = doc.PathEditWarning(SelectedUnit);
@@ -207,12 +207,12 @@ public sealed partial class LegacyFloorWindow
         finally { refreshingAction = false; }
 
         if (keepMessage) return;
-        if (warning is not null) { pathStatus.Text = "Path editing unavailable: " + warning; return; }
+        if (warning is not null) { pathStatus.Text = L.T("Path editing unavailable: {0}", warning); return; }
         pathStatus.Text = points.Count == 0
-            ? "No patrol path. Tick Edit path and click the map to lay down the first point."
-            : $"{points.Count} patrol point{(points.Count == 1 ? "" : "s")}" +
-              (selectedPoint >= 0 ? $" · point {selectedPoint + 1} selected at ({points[selectedPoint].X}, {points[selectedPoint].Y}), {Ds1PathAction.Describe(points[selectedPoint].Action)}" : "") +
-              ". Drag to move, click empty ground to append, right-click a point to remove. Moving the unit translates the whole path.";
+            ? L.T("No patrol path. Tick Edit path and click the map to lay down the first point.")
+            : L.T("{0} patrol point(s)", points.Count) +
+              (selectedPoint >= 0 ? " · " + L.T("point {0} selected at ({1}, {2}), {3}", selectedPoint + 1, points[selectedPoint].X, points[selectedPoint].Y, Ds1PathAction.Describe(points[selectedPoint].Action)) : "") +
+              ". " + L.T("Drag to move, click empty ground to append, right-click a point to remove. Moving the unit translates the whole path.");
     }
 
     /// <summary>Draws the selected unit's path with numbered points on top of the unit markers.</summary>

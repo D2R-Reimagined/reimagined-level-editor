@@ -52,8 +52,8 @@ internal sealed class ToastManager
             Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 8) };
         var layout = new DockPanel();
         var close = new Button { Content = "×", Padding = new Thickness(6, 0, 6, 0),
-            VerticalAlignment = VerticalAlignment.Top, ToolTip = "Dismiss notification" };
-        System.Windows.Automation.AutomationProperties.SetName(close, "Dismiss notification");
+            VerticalAlignment = VerticalAlignment.Top, ToolTip = L.T("Dismiss notification") };
+        System.Windows.Automation.AutomationProperties.SetName(close, L.T("Dismiss notification"));
         close.Click += (_, _) => Remove(card); DockPanel.SetDock(close, Dock.Right); layout.Children.Add(close);
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, FontSize = 15, TextWrapping = TextWrapping.Wrap });

@@ -8,6 +8,24 @@ if (args.Length > 0 && args[0] == "--terrain-export-probe")
     TerrainExportProbe.Run(args[1], args[2], args[3]); return;
 }
 
+if (args.Length > 0 && args[0] is "--strings-audit" or "--strings-update")
+{
+    // args: --strings-audit [repoRoot] | --strings-update [repoRoot]
+    string repo = args.Length > 1 ? Path.GetFullPath(args[1])
+        : TranslationsAudit.FindRepositoryRoot(Directory.GetCurrentDirectory(), AppContext.BaseDirectory)
+        ?? throw new ArgumentException("Pass the repository root; D2RLevelEditor.slnx was not found above the current directory.");
+    if (args[0] == "--strings-update")
+        foreach (var line in TranslationsAudit.Update(repo)) Console.WriteLine(line);
+    var strings = TranslationsAudit.Run(repo);
+    foreach (var line in strings.Report) Console.WriteLine(line);
+    // Failures go to stderr so they surface even when a build runs this with quiet stdout.
+    foreach (var line in strings.Failures) Console.Error.WriteLine("FAIL " + line);
+    Console.WriteLine(strings.Failures.Count == 0
+        ? $"PASS strings: {strings.SourceStrings.Count} translatable strings in sync with lang/en.json."
+        : $"{strings.Failures.Count} translation problem(s); see lang/README.md.");
+    Environment.Exit(strings.Failures.Count == 0 ? 0 : 1);
+}
+
 if (args.Length > 0 && args[0] == "--gameplay-audit")
 {
     int maps = 0, units = 0, paths = 0, moved = 0, warnings = 0, unsupported = 0, editedPaths = 0, blockedPaths = 0;
@@ -278,6 +296,16 @@ try
     PathChecks.Run(folder, Check, Throws);
     CalibrationChecks.Run(folder, Check, Throws);
     AuthoringChecks.Run(folder, Check, Throws);
+    LocalizationChecks.Run(folder, Check, Throws);
+    // The real template must match the real sources, so a wording change cannot land without updating it.
+    if (TranslationsAudit.FindRepositoryRoot(Directory.GetCurrentDirectory(), AppContext.BaseDirectory) is { } repoRoot)
+    {
+        var strings = TranslationsAudit.Run(repoRoot);
+        foreach (var line in strings.Report.Where(r => r.Contains('%'))) Console.WriteLine("  " + line);
+        foreach (var line in strings.Failures) Console.WriteLine("  " + line);
+        Check(strings.Failures.Count == 0, $"lang/en.json matches the {strings.SourceStrings.Count} translatable strings in the app sources (run --strings-update after changing UI text)");
+    }
+    else Console.WriteLine("SKIP strings audit: repository root not found.");
     var pairBase = Path.Combine(folder, "pair-base"); var pairMod = Path.Combine(folder, "pair-mod");
     foreach (var root in new[] { pairBase, pairMod })
     {

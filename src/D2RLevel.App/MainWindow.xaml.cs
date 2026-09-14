@@ -20,18 +20,19 @@ public partial class MainWindow : Window
     private bool loadedFullDetail;
     private LegacyFloorWindow? ds1Window;
     private LegacyFloorScene? pairedScene;
-    private string pairedStatus = "Open a JSON preset to find its DS1.";
+    private string pairedStatus = L.T("Open a JSON preset to find its DS1.");
     private PresetEntity? Selected => Hierarchy.SelectedItem as PresetEntity;
     private readonly string[] arguments;
     private EditorSettings settings = new();
-    private string SettingsPath => Argument("--settings-file") ??
-        (Argument("--smoke-output") is { } output ? Path.Combine(output, "settings.json") : EditorSettings.DefaultPath);
+    private string SettingsPath => SettingsPathFor(arguments);
+    internal static string SettingsPathFor(string[] args) => Argument(args, "--settings-file") ??
+        (Argument(args, "--smoke-output") is { } output ? Path.Combine(output, "settings.json") : EditorSettings.DefaultPath);
 
     private string? SaveSettings()
     {
         try { settings.Save(SettingsPath); return null; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        { return "Settings could not be saved: " + ex.Message; }
+        { return L.T("Settings could not be saved: {0}", ex.Message); }
     }
 
     public MainWindow(string[] args)
@@ -42,6 +43,7 @@ public partial class MainWindow : Window
         Ds1Preview.OpenRequested += () => Floors_Click(this, new());
         Ds1Preview.CalibrateRequested += Calibrate_Click;
         settings = EditorSettings.Load(SettingsPath, out settingsReadWarning);
+        PopulateLanguageMenu();
         InitializeWindowPlacement();
         FullDetail.IsChecked = args.Contains("--full-detail");
         Scene.EntitySelected += SelectFromViewport;
@@ -52,10 +54,11 @@ public partial class MainWindow : Window
         Loaded += async (_, _) => await Startup();
         RefreshState();
     }
-    private string? Argument(string name)
+    private string? Argument(string name) => Argument(arguments, name);
+    internal static string? Argument(string[] args, string name)
     {
-        int i = Array.IndexOf(arguments, name);
-        return i >= 0 && i + 1 < arguments.Length ? arguments[i + 1] : null;
+        int i = Array.IndexOf(args, name);
+        return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
     }
     private async Task Startup()
     {
@@ -63,10 +66,11 @@ public partial class MainWindow : Window
         {
             var notices = new List<string>();
             if (settingsReadWarning is not null) notices.Add(settingsReadWarning);
+            if (App.LanguageWarning is not null) notices.Add(App.LanguageWarning);
             if ((Argument("--data") ?? settings.AssetFolder) is { Length: > 0 } data)
             {
                 try { resolver = new(data); settings = settings with { AssetFolder = resolver.DataRoot }; }
-                catch (Exception ex) { notices.Add("Asset folder unavailable. Choose Asset folder… " + ex.Message); }
+                catch (Exception ex) { notices.Add(L.T("Asset folder unavailable. Choose Asset folder… {0}", ex.Message)); }
             }
             string bundledGranny = Path.Combine(AppContext.BaseDirectory, "Native", "granny2.dll");
             bool useBundledGranny = Argument("--granny") is null && File.Exists(bundledGranny);
@@ -79,7 +83,7 @@ public partial class MainWindow : Window
                     // Keep the bundled path relative to the app so moving the package works.
                     if (!useBundledGranny) settings = settings with { GrannyPath = fullPath };
                 }
-                catch (Exception ex) { notices.Add("Granny decoder unavailable. Choose Granny decoder… " + ex.Message); }
+                catch (Exception ex) { notices.Add(L.T("Granny decoder unavailable. Choose Granny decoder… {0}", ex.Message)); }
             }
             if ((resolver is not null || decoderLoaded) && SaveSettings() is { } saveWarning) notices.Add(saveWarning);
             RefreshState();
@@ -87,9 +91,9 @@ public partial class MainWindow : Window
             else if (settings.WorkspaceFolder is { Length: > 0 } workspace)
             {
                 try { await LoadWorkspace(workspace); }
-                catch (Exception ex) { notices.Add("Workspace could not be restored: " + ex.Message); }
+                catch (Exception ex) { notices.Add(L.T("Workspace could not be restored: {0}", ex.Message)); }
             }
-            else if (resolver is not null) { PathLabel.Text = "Assets: " + resolver.DataRoot; Status.Text = "Saved asset folder restored" + (decoderLoaded ? " · Granny decoder loaded." : "."); }
+            else if (resolver is not null) { PathLabel.Text = L.T("Assets: {0}", resolver.DataRoot); Status.Text = decoderLoaded ? L.T("Saved asset folder restored · Granny decoder loaded.") : L.T("Saved asset folder restored."); }
             if (notices.Count > 0)
             {
                 Status.Text = string.Join("\n", notices);
@@ -211,7 +215,7 @@ public partial class MainWindow : Window
                     if (legacy.MissingCells != 0) throw new InvalidOperationException("Unresolved legacy floors.");
                     if (!Ds1Preview.HasPreview || ds1Window is not null) throw new InvalidOperationException("Inline DS1 preview must work before opening its editor.");
                     await Capture(this, "inline-ds1.png");
-                    Ds1Preview.SetScene(null, "No matching DS1 detected.");
+                    Ds1Preview.SetScene(null, L.T("No matching DS1 detected."));
                     if (Ds1Preview.HasPreview) throw new InvalidOperationException("Missing DS1 left stale preview content.");
                     Ds1Preview.SetScene(pairedScene, pairedStatus);
                     Floors_Click(this, new());
@@ -255,7 +259,7 @@ public partial class MainWindow : Window
     {
         if ((document?.IsDirty == true || placementLinks?.HasMetadataChanges == true ||
             (document?.History.Shared == true && pairedScene?.Collision?.Document.IsDirty == true)) &&
-            MessageBox.Show(this, "Discard unsaved JSON, DS1 or link edits? Use Save linked pair to keep them together.", "Unsaved changes", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+            MessageBox.Show(this, L.T("Discard unsaved JSON, DS1 or link edits? Use Save linked pair to keep them together."), L.T("Unsaved changes"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
         ds1Window?.Close();
         return ds1Window is null; // A canceled DS1 close also cancels preset replacement/app exit.
     }
@@ -319,12 +323,12 @@ public partial class MainWindow : Window
             Search.Text = ""; Filter();
             Diagnostics.Text = string.Join(Environment.NewLine, result.Diagnostics.Concat(npcPreview.Diagnostics));
             Diagnostics.Text += $"\nWPF rendering tier: {System.Windows.Media.RenderCapability.Tier >> 16} · process mode: {System.Windows.Media.RenderOptions.ProcessRenderMode}";
-            Status.Text = $"{result.LoadedModels}/{result.Items.Count} model instances loaded · {result.Items.Count - result.LoadedModels} missing/unsupported markers · {result.Diagnostics.Count} diagnostics";
-            if (result.MissingDecoderModels > 0) Status.Text = $"{result.LoadedModels}/{result.Items.Count} models loaded · {result.MissingDecoderModels} need a Granny decoder — click Granny decoder…";
-            PathLabel.Text = candidate.SourcePath + "  |  Assets: " + (resolver?.DataRoot ?? "not selected");
+            Status.Text = L.T("{0}/{1} model instances loaded · {2} missing/unsupported markers · {3} diagnostics", result.LoadedModels, result.Items.Count, result.Items.Count - result.LoadedModels, result.Diagnostics.Count);
+            if (result.MissingDecoderModels > 0) Status.Text = L.T("{0}/{1} models loaded · {2} need a Granny decoder — click Granny decoder…", result.LoadedModels, result.Items.Count, result.MissingDecoderModels);
+            PathLabel.Text = candidate.SourcePath + "  |  " + L.T("Assets: {0}", resolver?.DataRoot ?? L.T("not selected"));
             PopulateInspector();
         }
-        catch (OperationCanceledException) { Status.Text = "Load canceled. Previous document retained."; }
+        catch (OperationCanceledException) { Status.Text = L.T("Load canceled. Previous document retained."); }
         finally
         {
             loading = null; RefreshState();
@@ -333,13 +337,13 @@ public partial class MainWindow : Window
     }
     private async void Open_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog { Filter = "D2R preset JSON|*.json", Title = "Open extracted HD preset" };
+        var dialog = new OpenFileDialog { Filter = "D2R preset JSON|*.json", Title = L.T("Open extracted HD preset") };
         if (dialog.ShowDialog(this) != true || !CanReplace()) return;
         try { await LoadPreset(dialog.FileName); } catch (Exception ex) { Error(ex); }
     }
     private async void Root_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = "Select extracted data folder (containing hd/)" };
+        var dialog = new OpenFolderDialog { Title = L.T("Select extracted data folder (containing hd/)") };
         if (dialog.ShowDialog(this) != true) return;
         ds1Window?.Close();
         if (ds1Window is not null) return;
@@ -347,7 +351,7 @@ public partial class MainWindow : Window
         {
             var next = new AssetResolver(dialog.FolderName);
             if (document is not null) await LoadScene(document, next);
-            else { resolver = next; Status.Text = "Asset folder: " + resolver.DataRoot; }
+            else { resolver = next; Status.Text = L.T("Asset folder: {0}", resolver.DataRoot); }
             if (ReferenceEquals(resolver, next))
             {
                 settings = settings with { AssetFolder = next.DataRoot };
@@ -375,16 +379,16 @@ public partial class MainWindow : Window
         if (document is null) return;
         if (workspaceSession is not null) { SaveScene_Click(sender, e); return; }
         if (document.History.Shared) { SavePair_Click(sender, e); return; }
-        var dialog = new SaveFileDialog { Filter = "D2R preset JSON|*.json", FileName = Path.GetFileNameWithoutExtension(document.SourcePath) + ".edited.json", Title = "Save a separate edited preset" };
+        var dialog = new SaveFileDialog { Filter = L.T("D2R preset JSON") + "|*.json", FileName = Path.GetFileNameWithoutExtension(document.SourcePath) + ".edited.json", Title = L.T("Save a separate edited preset") };
         if (dialog.ShowDialog(this) != true) return;
-        try { document.SaveCopy(dialog.FileName); Status.Text = "Saved and verified: " + dialog.FileName; RefreshState(); Notify("Preset saved", dialog.FileName); } catch (Exception ex) { Error(ex); }
+        try { document.SaveCopy(dialog.FileName); Status.Text = L.T("Saved and verified: {0}", dialog.FileName); RefreshState(); Notify(L.T("Preset saved"), dialog.FileName); } catch (Exception ex) { Error(ex); }
     }
     private void Audit_Click(object sender, RoutedEventArgs e)
     {
-        if (document is null || resolver is null) { Status.Text = "Open a preset and select the asset folder first."; return; }
-        var dialog = new SaveFileDialog { Filter = "Asset list|*.txt", FileName = "missing-assets.txt" };
+        if (document is null || resolver is null) { Status.Text = L.T("Open a preset and select the asset folder first."); return; }
+        var dialog = new SaveFileDialog { Filter = L.T("Asset list") + "|*.txt", FileName = "missing-assets.txt" };
         if (dialog.ShowDialog(this) != true) return;
-        try { var missing = resolver.Missing(document); File.WriteAllLines(dialog.FileName, missing); Status.Text = $"Exported {missing.Length} missing paths to {dialog.FileName}"; }
+        try { var missing = resolver.Missing(document); File.WriteAllLines(dialog.FileName, missing); Status.Text = L.T("Exported {0} missing paths to {1}", missing.Length, dialog.FileName); }
         catch (Exception ex) { Error(ex); }
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => loading?.Cancel();
@@ -427,13 +431,13 @@ public partial class MainWindow : Window
         Scene.CancelDrag();
         Scene.TerrainLocked = LockTerrain.IsChecked == true;
         Status.Text = Scene.TerrainLocked
-            ? "Terrain locked. Viewport clicks pass through it; select it in the entity list to inspect it."
-            : "Terrain unlocked. It can be clicked and dragged in the viewport again.";
+            ? L.T("Terrain locked. Viewport clicks pass through it; select it in the entity list to inspect it.")
+            : L.T("Terrain unlocked. It can be clicked and dragged in the viewport again.");
         RefreshState();
     }
     private void Models_Click(object sender, RoutedEventArgs e)
     {
-        if (resolver is null) { Status.Text = "Select the extracted asset folder first."; return; }
+        if (resolver is null) { Status.Text = L.T("Select the extracted asset folder first."); return; }
         var explorer = new ModelExplorer(resolver, document, entity =>
         {
             Search.Text = ""; Hierarchy.SelectedItem = entity; Hierarchy.ScrollIntoView(entity); Scene.FrameSelected();
@@ -449,26 +453,26 @@ public partial class MainWindow : Window
         addedModels[entity] = item; Scene.AddItem(item);
         Search.Text = ""; Filter(); Hierarchy.SelectedItem = entity; Hierarchy.ScrollIntoView(entity);
         Scene.FrameSelected(); RefreshState();
-        Status.Text = "Added " + entity.Name + ". Left-drag to move; Esc cancels a drag. Saves as an HD decorative model (no collision).";
+        Status.Text = L.T("Added {0}. Left-drag to move; Esc cancels a drag. Saves as an HD decorative model (no collision).", entity.Name);
     }
     private async void Floors_Click(object sender, RoutedEventArgs e)
     {
         if (ds1Window is not null) { FocusDs1(ds1Window); return; }
         if (pairedScene is not null) { ShowDs1(new LegacyFloorWindow(pairedScene, Selected is { } current ? Scene.GetFootprint(current) : null)); return; }
-        if (resolver is null) { Status.Text = "Select the extracted asset folder first."; return; }
+        if (resolver is null) { Status.Text = L.T("Select the extracted asset folder first."); return; }
         PresetPair? pair;
         try { pair = document is null ? null : PresetPairing.Find(document.SourcePath, resolver, settings.PresetPairs); }
         catch (Exception ex) { Error(ex); return; }
         string? paired = pair?.Ds1Path;
         if (paired is null || !File.Exists(paired))
         {
-            var dialog = new OpenFileDialog { Filter = "Legacy preset|*.ds1", Title = "Choose the matching DS1 inside global/tiles", InitialDirectory = resolver.Resolve("data/global/tiles") };
+            var dialog = new OpenFileDialog { Filter = L.T("Legacy preset") + "|*.ds1", Title = L.T("Choose the matching DS1 inside global/tiles"), InitialDirectory = resolver.Resolve("data/global/tiles") };
             if (dialog.ShowDialog(this) != true) return; paired = dialog.FileName;
         }
         using var cts = new CancellationTokenSource(); loading = cts; RefreshState();
         try
         {
-            Status.Text = "Resolving DS1 floors through LvlPrest, Levels and LvlTypes…";
+            Status.Text = L.T("Resolving DS1 floors through LvlPrest, Levels and LvlTypes…");
             var overrideRoot = pair?.Source == "Base asset fallback" && document is not null ? PresetPairing.Split(document.SourcePath, "hd/env/preset")?.DataRoot : null;
             var result = await Task.Run(() => LegacyFloorScene.Load(paired, resolver, cts.Token, overrideRoot), cts.Token);
             cts.Token.ThrowIfCancellationRequested();
@@ -480,10 +484,10 @@ public partial class MainWindow : Window
                 if (pair is null) { pairs[document.SourcePath] = paired; settings = settings with { PresetPairs = pairs }; pairingWarning = SaveSettings(); }
             }
             ShowDs1(new LegacyFloorWindow(result, Selected is { } selected ? Scene.GetFootprint(selected) : null));
-            Status.Text = $"Legacy floors: {result.Map.Width} × {result.Map.Height} · {result.MissingCells} unresolved cells";
+            Status.Text = L.T("Legacy floors: {0} × {1} · {2} unresolved cells", result.Map.Width, result.Map.Height, result.MissingCells);
             if (pairingWarning is not null) Status.Text += "\n" + pairingWarning;
         }
-        catch (OperationCanceledException) { Status.Text = "Legacy floor load canceled."; }
+        catch (OperationCanceledException) { Status.Text = L.T("Legacy floor load canceled."); }
         catch (Exception ex) { Error(ex); }
         finally { loading = null; RefreshState(); if (closeAfterCancel) { closeAfterCancel = false; Close(); } }
     }
@@ -495,7 +499,7 @@ public partial class MainWindow : Window
         void RefreshPair()
         {
             pairedScene = window.FloorScene;
-            pairedStatus = "DS1: " + Path.GetFileName(pairedScene.Ds1Path);
+            pairedStatus = L.T("DS1: {0}", Path.GetFileName(pairedScene.Ds1Path));
             Ds1Preview.SetScene(pairedScene, pairedStatus);
             InitializeLinks();
             RefreshNpcs();
@@ -531,7 +535,7 @@ public partial class MainWindow : Window
         try { Hierarchy.ItemsSource = matches; }
         finally { changingSelection = false; }
         SetSelection(selected.Where(matches.Contains));
-        EntityCount.Text = $"{matches.Length} / {(document?.Entities.Count ?? 0) + npcItems.Count} entities";
+        EntityCount.Text = L.T("{0} / {1} entities", matches.Length, (document?.Entities.Count ?? 0) + npcItems.Count);
     }
     private void Selection_Changed(object sender, SelectionChangedEventArgs e)
     {
@@ -551,13 +555,13 @@ public partial class MainWindow : Window
         ds1Window?.UpdateHdFootprint(Selected is { } current ? Scene.GetFootprint(current) : null);
         ds1Window?.ConfigureLinkedCollision(placementLinks, Selected?.GameplayUnitIndex is null ? Selected : null);
         var entity = Selected;
-        SelectedName.Text = entity?.Name ?? "Select an entity";
-        SelectedInfo.Text = entity is null ? "" : entity.GameplayUnitIndex is { } npcIndex ? $"DS1 unit #{npcIndex} · gameplay placement" : $"ID {entity.Id}\n{entity.Components.Count} preserved components";
-        ModelLabel.Text = entity?.GameplayUnitIndex is not null ? "DS1 character · static reference pose" : entity?.PreviewModel ?? "No static model";
+        SelectedName.Text = entity?.Name ?? L.T("Select an entity");
+        SelectedInfo.Text = entity is null ? "" : entity.GameplayUnitIndex is { } npcIndex ? L.T("DS1 unit #{0} · gameplay placement", npcIndex) : L.T("ID {0}\n{1} preserved components", entity.Id, entity.Components.Count);
+        ModelLabel.Text = entity?.GameplayUnitIndex is not null ? L.T("DS1 character · static reference pose") : entity?.PreviewModel ?? L.T("No static model");
         RawJson.Text = entity?.RawJson ?? "";
         TransformPanel.IsEnabled = loading is null && entity?.CanTransform == true && !entity.HasParent && entity.GameplayUnitIndex is null && !Scene.IsLocked(entity);
         if (entity is not null && Scene.IsLocked(entity))
-            SelectedInfo.Text += "\nTerrain is locked. Untick Lock terrain to move it.";
+            SelectedInfo.Text += "\n" + L.T("Terrain is locked. Untick Lock terrain to move it.");
         if (entity?.CanTransform != true) return;
         var t = entity.Transform;
         double[] values = [t.Position.X, t.Position.Y, t.Position.Z, t.Orientation.X, t.Orientation.Y, t.Orientation.Z, t.Orientation.W, t.Scale.X, t.Scale.Y, t.Scale.Z];
@@ -585,7 +589,7 @@ public partial class MainWindow : Window
             var p = entity.Transform.Position; var t = transform.Position;
             var members = SelectedEntities;
             GroupMovement.Move(document!, placementLinks, members, new(t.X-p.X, t.Y-p.Y, t.Z-p.Z));
-            Status.Text = $"Moved {members.Length} assets together. Linked DS1 units and collision follow; Ctrl+Z undoes the entire move."; return;
+            Status.Text = L.T("Moved {0} assets together. Linked DS1 units and collision follow; Ctrl+Z undoes the entire move.", members.Length); return;
         }
         if (entity.GameplayUnitIndex is not null) { MoveNpc(entity, transform); return; }
         if (placementLinks is not null) placementLinks.Move(entity, transform);
@@ -638,8 +642,8 @@ public partial class MainWindow : Window
     private void Frame_Click(object sender, RoutedEventArgs e) => Scene.FrameSelected();
     private void FocusArea_Click(object sender, RoutedEventArgs e)
     {
-        if (Selected is null) { Status.Text = "Select a prop to center the local editing area."; return; }
-        if (!Scene.FocusArea()) Status.Text = "Focus area is available for large, batched scenes; use Frame selected for this scene.";
+        if (Selected is null) { Status.Text = L.T("Select a prop to center the local editing area."); return; }
+        if (!Scene.FocusArea()) Status.Text = L.T("Focus area is available for large, batched scenes; use Frame selected for this scene.");
     }
     private void RefreshState()
     {
@@ -654,14 +658,14 @@ public partial class MainWindow : Window
         SaveSceneButton.IsEnabled = !busy && workspaceSession is not null && placementLinks?.Warning is null && pairedScene?.Collision is not null;
         WorkspaceScenes.IsEnabled = !busy;
         SaveCopyButton.Visibility = workspaceSession is not null || exploringWorkspace ? Visibility.Collapsed : Visibility.Visible;
-        SavePairButton.Content = workspaceSession is not null ? "Save Scene" : "Save linked pair…";
+        SavePairButton.Content = workspaceSession is not null ? L.T("Save Scene") : L.T("Save linked pair…");
         DeleteModelButton.IsEnabled = !busy && SelectedEntities.Length == 1 && Selected is { HasParent: false, IsTerrain: false, PreviewModel: not null };
         RefreshLinkStatus();
         bool dirty = document?.IsDirty == true || placementLinks?.HasMetadataChanges == true || (document?.History.Shared == true && pairedScene?.Collision?.Document.IsDirty == true);
-        Title = $"Reimagined Level Editor · {(document is null ? "Workspace" : Path.GetFileName(document.SourcePath))}{(dirty ? " *" : "")}";
+        Title = "Reimagined Level Editor · " + (document is null ? L.T("Workspace") : Path.GetFileName(document.SourcePath)) + (dirty ? " *" : "");
     }
     private void Notify(string title, string message, bool error = false) => ToastManager.Show(ds1Window?.IsActive == true ? ds1Window : this, title, message, error);
-    private void Error(Exception ex) { Status.Text = ex.Message; Notify("Action failed", ex.Message, true); }
+    private void Error(Exception ex) { Status.Text = ex.Message; Notify(L.T("Action failed"), ex.Message, true); }
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         if (loading is not null) { e.Cancel = true; closeAfterCancel = true; loading.Cancel(); return; }

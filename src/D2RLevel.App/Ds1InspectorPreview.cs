@@ -9,7 +9,7 @@ namespace D2RLevel.App;
 
 public sealed class Ds1InspectorPreview : StackPanel
 {
-    private readonly TextBlock status = new() { Text = "Open a JSON preset to find its DS1.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 6) };
+    private readonly TextBlock status = new() { Text = L.T("Open a JSON preset to find its DS1."), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 6) };
     private readonly Image preview = new() { Height = 180, Stretch = Stretch.Uniform, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     private readonly TextBlock position = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightSteelBlue };
     private readonly TextBlock calibrationText = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightSteelBlue, Margin = new Thickness(0, 4, 0, 0) };
@@ -36,18 +36,18 @@ public sealed class Ds1InspectorPreview : StackPanel
     public string StatusText => status.Text;
     public Ds1InspectorPreview()
     {
-        Children.Add(new TextBlock { Text = "DS1 · LOCAL COLLISION", FontWeight = FontWeights.Bold }); Children.Add(status); Children.Add(preview); Children.Add(position);
+        Children.Add(new TextBlock { Text = L.T("DS1 · LOCAL COLLISION"), FontWeight = FontWeights.Bold }); Children.Add(status); Children.Add(preview); Children.Add(position);
         var actions = new WrapPanel(); Children.Add(actions);
         void Button(string label, Action action)
         { var b = new Button { Content = label, Padding = new Thickness(7, 4, 7, 4) }; b.Click += (_, _) => action(); actions.Children.Add(b); }
         Button("−", () => { magnification = Math.Max(.2, magnification / 1.4); Refresh(); });
         Button("+", () => { magnification = Math.Min(1.5, magnification * 1.4); Refresh(); });
-        Button("Open DS1…", () => OpenRequested?.Invoke());
-        Children.Add(new TextBlock { Text = "GRID CALIBRATION", FontWeight = FontWeights.Bold, Margin = new Thickness(0, 10, 0, 0) });
+        Button(L.T("Open DS1…"), () => OpenRequested?.Invoke());
+        Children.Add(new TextBlock { Text = L.T("GRID CALIBRATION"), FontWeight = FontWeights.Bold, Margin = new Thickness(0, 10, 0, 0) });
         Children.Add(calibrationText); Children.Add(calibrationWarning);
         var scale = new WrapPanel(); Children.Add(scale);
-        var calibrate = new Button { Content = "Calibrate…", Padding = new Thickness(7, 4, 7, 4),
-            ToolTip = "Measure this pair's HD-to-DS1 scale from terrain or from objects already linked, or enter it by hand." };
+        var calibrate = new Button { Content = L.T("Calibrate…"), Padding = new Thickness(7, 4, 7, 4),
+            ToolTip = L.T("Measure this pair's HD-to-DS1 scale from terrain or from objects already linked, or enter it by hand.") };
         calibrate.Click += (_, _) => CalibrateRequested?.Invoke();
         scale.Children.Add(calibrate);
         RefreshCalibration();
@@ -84,13 +84,13 @@ public sealed class Ds1InspectorPreview : StackPanel
         preview.Source = null; preview.Visibility = Visibility.Collapsed; status.Text = pairStatus; position.Text = "";
         RefreshCalibration();
         if (scene is null) return;
-        if (selected?.CanTransform != true || selected.HasParent) { position.Text = "Select an unparented HD object to inspect its DS1 surroundings."; return; }
+        if (selected?.CanTransform != true || selected.HasParent) { position.Text = L.T("Select an unparented HD object to inspect its DS1 surroundings."); return; }
         double scale = Calibration.UnitsPerTile;
         double x = selected.Transform.Position.X / scale, y = selected.Transform.Position.Z / scale;
         if (!double.IsFinite(x) || !double.IsFinite(y) || x < 0 || y < 0 || x >= scene.Map.Width || y >= scene.Map.Height)
-        { position.Text = "Selected HD object lies outside this DS1 at the current scale. Check alignment."; return; }
-        position.Text = $"Approx. tile ({x:F1}, {y:F1}) · read-only\nRed: blocked · Orange: override · Purple: unresolved";
-        if (scene.Collision?.Document.IsDirty == true) status.Text += " · unsaved DS1 edits";
+        { position.Text = L.T("Selected HD object lies outside this DS1 at the current scale. Check alignment."); return; }
+        position.Text = L.T("Approx. tile ({0:F1}, {1:F1}) · read-only\nRed: blocked · Orange: override · Purple: unresolved", x, y);
+        if (scene.Collision?.Document.IsDirty == true) status.Text += " · " + L.T("unsaved DS1 edits");
         var visual = new DrawingVisual();
         var blocked = new SolidColorBrush(Color.FromArgb(120, 235, 40, 40));
         using (var dc = visual.RenderOpen())

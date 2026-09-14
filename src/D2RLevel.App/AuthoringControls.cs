@@ -13,32 +13,32 @@ public partial class MainWindow
         if (loading is not null) return;
         if (document is null || pairedScene?.Collision is null || resolver is null)
         {
-            if (resolver is null) { Status.Text = "Choose Assets → Asset folder first, then New level to select an environment template."; return; }
-            var template = new OpenFileDialog { Title = "Choose the environment template for your new level", Filter = "D2R preset JSON|*.json", InitialDirectory = resolver.Resolve("data/hd/env/preset") };
+            if (resolver is null) { Status.Text = L.T("Choose Assets → Asset folder first, then New level to select an environment template."); return; }
+            var template = new OpenFileDialog { Title = L.T("Choose the environment template for your new level"), Filter = "D2R preset JSON|*.json", InitialDirectory = resolver.Resolve("data/hd/env/preset") };
             if (template.ShowDialog(this) != true || !CanReplace()) return;
             try { await LoadPreset(template.FileName); } catch (Exception ex) { Error(ex); return; }
-            if (document is null || pairedScene?.Collision is null) { Status.Text = "This template has no supported paired DS1. Choose a fixed preset with an explicit level context."; return; }
+            if (document is null || pairedScene?.Collision is null) { Status.Text = L.T("This template has no supported paired DS1. Choose a fixed preset with an explicit level context."); return; }
         }
         var panel = new StackPanel { Margin = new Thickness(20) };
-        var name = new TextBox { Text = "My arena", MaxLength = 100 };
-        var scenery = new CheckBox { Content = "Keep existing scenery", IsChecked = false, Margin = new Thickness(3, 10, 3, 6), Foreground = System.Windows.Media.Brushes.White };
+        var name = new TextBox { Text = L.T("My arena"), MaxLength = 100 };
+        var scenery = new CheckBox { Content = L.T("Keep existing scenery"), IsChecked = false, Margin = new Thickness(3, 10, 3, 6), Foreground = System.Windows.Media.Brushes.White };
         var floors = pairedScene.Tiles.Keys.OrderBy(k => k.Main).ThenBy(k => k.Sub).ToArray();
-        var floor = new ComboBox { ItemsSource = new[] { "Empty ground" }.Concat(floors.Select(k => $"Floor {k.Main}:{k.Sub}")), SelectedIndex = 0, Margin = new Thickness(3), Foreground = System.Windows.Media.Brushes.Black };
+        var floor = new ComboBox { ItemsSource = new[] { L.T("Empty ground") }.Concat(floors.Select(k => L.T("Floor {0}:{1}", k.Main, k.Sub))), SelectedIndex = 0, Margin = new Thickness(3), Foreground = System.Windows.Media.Brushes.Black };
         floor.WithReadableItems();
-        panel.Children.Add(new TextBlock { Text = "Create a level", FontSize = 22, Margin = new Thickness(0, 0, 0, 12) });
-        panel.Children.Add(new TextBlock { Text = $"Environment: {Path.GetFileName(document.SourcePath)} · {pairedScene.Map.Width} × {pairedScene.Map.Height} tiles\nTerrain and environment are retained as a scaffold. Known standalone scenery is cleared unless you keep it below; unknown components and hierarchies are preserved. Gameplay starts with new floors and no walls, units or entrances.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
-        panel.Children.Add(new TextBlock { Text = "Project name" }); panel.Children.Add(name);
-        panel.Children.Add(new TextBlock { Text = "Starting floor" }); panel.Children.Add(floor);
+        panel.Children.Add(new TextBlock { Text = L.T("Create a level"), FontSize = 22, Margin = new Thickness(0, 0, 0, 12) });
+        panel.Children.Add(new TextBlock { Text = L.T("Environment: {0} · {1} × {2} tiles\nTerrain and environment are retained as a scaffold. Known standalone scenery is cleared unless you keep it below; unknown components and hierarchies are preserved. Gameplay starts with new floors and no walls, units or entrances.", Path.GetFileName(document.SourcePath), pairedScene.Map.Width, pairedScene.Map.Height), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+        panel.Children.Add(new TextBlock { Text = L.T("Project name") }); panel.Children.Add(name);
+        panel.Children.Add(new TextBlock { Text = L.T("Starting floor") }); panel.Children.Add(floor);
         panel.Children.Add(scenery);
-        panel.Children.Add(new TextBlock { Text = "Choose a parent folder next. A new project folder is created there; existing folders cannot be replaced. This creates a layout for the template's level slot, not a new area ID.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 12) });
+        panel.Children.Add(new TextBlock { Text = L.T("Choose a parent folder next. A new project folder is created there; existing folders cannot be replaced. This creates a layout for the template's level slot, not a new area ID."), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 12) });
         var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        var cancel = new Button { Content = "Cancel", IsCancel = true }; var create = new Button { Content = "Choose folder…", IsDefault = true };
+        var cancel = new Button { Content = L.T("Cancel"), IsCancel = true }; var create = new Button { Content = L.T("Choose folder…"), IsDefault = true };
         buttons.Children.Add(cancel); buttons.Children.Add(create); panel.Children.Add(buttons);
-        var dialog = new Window { Owner = this, Title = "New level", Width = 540, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
+        var dialog = new Window { Owner = this, Title = L.T("New level"), Width = 540, SizeToContent = SizeToContent.Height, ResizeMode = ResizeMode.NoResize,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Background, Foreground = Foreground, Content = panel };
         create.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(name.Text)) dialog.DialogResult = true; };
         if (dialog.ShowDialog() != true) return;
-        var folder = new OpenFolderDialog { Title = "Choose the parent folder for the new level project" };
+        var folder = new OpenFolderDialog { Title = L.T("Choose the parent folder for the new level project") };
         if (folder.ShowDialog(this) != true) return;
         // Keep the template object until the new project is fully created and loaded.
         if (!CanReplace()) return;
@@ -55,13 +55,13 @@ public partial class MainWindow
             {
                 await OpenWorkspaceScene(scene);
                 if (document?.SourcePath != scene.JsonPath)
-                { workspaceFolder = previousFolder; workspaceScenes = previousScenes; Status.Text = "Project created at " + destination + "; opening was canceled. Previous scene retained."; return; }
+                { workspaceFolder = previousFolder; workspaceScenes = previousScenes; Status.Text = L.T("Project created at {0}; opening was canceled. Previous scene retained.", destination); return; }
             }
             catch { workspaceFolder = previousFolder; workspaceScenes = previousScenes; throw; }
             settings = settings with { WorkspaceFolder = workspaceFolder, RecentWorkspaces = new[] { workspaceFolder }.Concat(settings.RecentWorkspaces ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToArray() };
-            Status.Text = "Created " + name.Text + ". Draw ground in Ground / gameplay. HD terrain uses the template scaffold; entrances must be authored before game testing.";
+            Status.Text = L.T("Created {0}. Draw ground in Ground / gameplay. HD terrain uses the template scaffold; entrances must be authored before game testing.", name.Text);
             if (SaveSettings() is { } warning) Status.Text += "\n" + warning;
-            Notify("Level created", destination);
+            Notify(L.T("Level created"), destination);
         }
         catch (Exception ex) { Error(ex); }
     }

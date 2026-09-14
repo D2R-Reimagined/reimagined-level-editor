@@ -13,7 +13,7 @@ public sealed partial class LegacyFloorWindow : Window
     private readonly Image image = new() { Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
     private readonly TextBlock inspector = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10) };
     private readonly CheckBox[] layers;
-    private readonly CheckBox grid = new() { Content = "Tile grid", Foreground = Brushes.White, Margin = new Thickness(12), IsChecked = true };
+    private readonly CheckBox grid = new() { Content = L.T("Tile grid"), Foreground = Brushes.White, Margin = new Thickness(12), IsChecked = true };
     private readonly Dictionary<Dt1Floor, BitmapSource> bitmaps = new();
     private readonly double scale;
     private readonly Slider zoom = new() { Minimum = 0.1, Maximum = 2, Value = 0.35, Width = 180, Margin = new Thickness(12) };
@@ -24,25 +24,25 @@ public sealed partial class LegacyFloorWindow : Window
     {
         this.scene = scene;
         Icon = new BitmapImage(new Uri("pack://application:,,,/Assets/ReimaginedLevelEditor.ico"));
-        Title = "DS1 collision and floors · " + Path.GetFileName(scene.Ds1Path); Width = 1250; Height = 850;
+        Title = L.T("DS1 collision and floors · {0}", Path.GetFileName(scene.Ds1Path)); Width = 1250; Height = 850;
         Background = new SolidColorBrush(Color.FromRgb(20, 27, 35));
         scale = Math.Min(1, 3000d / ((scene.Map.Width + scene.Map.Height) * 80));
         var root = new DockPanel { Margin = new Thickness(12) }; Content = root;
-        var heading = new TextBlock { Text = $"DS1 v{scene.Map.Version} · {scene.Map.Width} × {scene.Map.Height} tiles · Act {scene.Map.Act} · Dt1Mask {scene.Mask} · {scene.Dt1Paths.Length} DT1 files · {scene.MissingCells} unresolved floor cells", Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
+        var heading = new TextBlock { Text = L.T("DS1 v{0} · {1} × {2} tiles · Act {3} · Dt1Mask {4} · {5} DT1 files · {6} unresolved floor cells", scene.Map.Version, scene.Map.Width, scene.Map.Height, scene.Map.Act, scene.Mask, scene.Dt1Paths.Length, scene.MissingCells), Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
-        var source = new TextBlock { Text = "DS1: " + scene.Ds1Path, Margin = new Thickness(8, 0, 8, 4), TextWrapping = TextWrapping.Wrap };
+        var source = new TextBlock { Text = L.T("DS1: {0}", scene.Ds1Path), Margin = new Thickness(8, 0, 8, 4), TextWrapping = TextWrapping.Wrap };
         DockPanel.SetDock(source, Dock.Top); root.Children.Add(source);
         var controls = new StackPanel { Orientation = Orientation.Horizontal }; DockPanel.SetDock(controls, Dock.Top); root.Children.Add(controls);
-        layers = Enumerable.Range(0, scene.Map.Layers.Length).Select(i => new CheckBox { Content = $"Floor {i + 1}", IsChecked = true, Foreground = Brushes.White, Margin = new Thickness(12) }).ToArray();
+        layers = Enumerable.Range(0, scene.Map.Layers.Length).Select(i => new CheckBox { Content = L.T("Floor {0}", i + 1), IsChecked = true, Foreground = Brushes.White, Margin = new Thickness(12) }).ToArray();
         foreach (var toggle in layers.Append(grid)) { controls.Children.Add(toggle); toggle.Click += (_, _) => Render(); }
-        controls.Children.Add(new TextBlock { Text = "Zoom", VerticalAlignment = VerticalAlignment.Center }); controls.Children.Add(zoom);
+        controls.Children.Add(new TextBlock { Text = L.T("Zoom"), VerticalAlignment = VerticalAlignment.Center }); controls.Children.Add(zoom);
         zoom.ValueChanged += (_, _) => ResizeImage();
         InitializeCollision(root);
         InitializeGround(root);
         InitializeFootprint(root, footprint);
         InitializeGameplay(root);
         InitializePaths(root);
-        var note = new TextBlock { Text = "Collision tools edit the real DS1 whole-tile Unwalkable flag. Clearing overrides retains DT1 wall/floor blocking.\nRed: blocked subtiles · Orange: DS1 override · Purple: unresolved · Yellow outline: variant-dependent. Draft cyan: footprint · Draft magenta: shared ownership.\nLinked HD moves translate their unit and owned collision together on release. Other owners and protected blocking remain. Save linked pair to export both maps and ownership.", Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
+        var note = new TextBlock { Text = L.T("Collision tools edit the real DS1 whole-tile Unwalkable flag. Clearing overrides retains DT1 wall/floor blocking.\nRed: blocked subtiles · Orange: DS1 override · Purple: unresolved · Yellow outline: variant-dependent. Draft cyan: footprint · Draft magenta: shared ownership.\nLinked HD moves translate their unit and owned collision together on release. Other owners and protected blocking remain. Save linked pair to export both maps and ownership."), Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
         DockPanel.SetDock(note, Dock.Bottom); root.Children.Add(note);
         DockPanel.SetDock(inspector, Dock.Bottom); root.Children.Add(inspector);
         var imageHost = new Grid { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
@@ -57,12 +57,12 @@ public sealed partial class LegacyFloorWindow : Window
             double a = point.X / zoom.Value / scale / 80 - scene.Map.Height, b = point.Y / zoom.Value / scale / 40;
             int x = (int)Math.Floor((a + b) / 2), y = (int)Math.Floor((b - a) / 2);
             if (x < 0 || y < 0 || x >= scene.Map.Width || y >= scene.Map.Height) return;
-            inspector.Text = $"Tile ({x}, {y})\n" + string.Join("\n", scene.Map.Layers.Select((l, i) =>
+            inspector.Text = L.T("Tile ({0}, {1})\n", x, y) + string.Join("\n", scene.Map.Layers.Select((l, i) =>
             {
                 var cell = scene.Collision is { } collision ? new FloorCell(collision.Document.Cell(collision.Document.Floors[i], x, y)) : l[y * scene.Map.Width + x];
                 var found = scene.Tiles.GetValueOrDefault((cell.Main, cell.Sub));
-                return $"Floor {i + 1}: " + (cell.IsEmpty ? "empty" : $"main {cell.Main}, sub {cell.Sub}, raw 0x{cell.Raw:X8} · " +
-                    (found is null ? "UNRESOLVED" : $"{Path.GetFileName(found[0].Source)} · {found.Length} variant(s)"));
+                return L.T("Floor {0}: ", i + 1) + (cell.IsEmpty ? L.T("empty") : L.T("main {0}, sub {1}, raw 0x{2:X8} · ", cell.Main, cell.Sub, cell.Raw) +
+                    (found is null ? L.T("UNRESOLVED") : L.T("{0} · {1} variant(s)", Path.GetFileName(found[0].Source), found.Length)));
             }));
             InspectCollision(x, y);
         };

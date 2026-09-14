@@ -11,7 +11,7 @@ public sealed partial class LegacyFloorWindow
 {
     private readonly ComboBox unitList = new() { Width = 290, Foreground = Brushes.Black, Margin = new Thickness(4) };
     private readonly TextBox unitX = new() { Width = 55, Margin = new Thickness(4) }, unitY = new() { Width = 55, Margin = new Thickness(4) };
-    private readonly CheckBox showUnits = new() { Content = "Gameplay units", IsChecked = true, Foreground = Brushes.White, Margin = new Thickness(8) };
+    private readonly CheckBox showUnits = new() { Content = L.T("Gameplay units"), IsChecked = true, Foreground = Brushes.White, Margin = new Thickness(8) };
     private readonly TextBlock unitStatus = new() { Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
     private bool refreshingUnits;
     public event Action<int, double>? LinkUnitRequested;
@@ -27,12 +27,12 @@ public sealed partial class LegacyFloorWindow
     {
         var row = new WrapPanel(); DockPanel.SetDock(row, Dock.Top); root.Children.Add(row);
         row.Children.Add(showUnits); row.Children.Add(unitList);
-        row.Children.Add(new TextBlock { Text = "Subtile X / Y", VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(new TextBlock { Text = L.T("Subtile X / Y"), VerticalAlignment = VerticalAlignment.Center });
         row.Children.Add(unitX); row.Children.Add(unitY);
-        var move = new Button { Content = "Move unit" }; row.Children.Add(move);
-        var add = new Button { Content = "Place unit…" }; row.Children.Add(add); add.Click += (_, _) => AddPlacement();
-        var delete = new Button { Content = "Delete unit" }; row.Children.Add(delete); delete.Click += (_, _) => DeletePlacement();
-        var link = new Button { Content = "Link unit to HD", ToolTip = "Select an HD model in the JSON view and a DS1 unit here. Uses this pair's grid calibration." }; row.Children.Add(link);
+        var move = new Button { Content = L.T("Move unit") }; row.Children.Add(move);
+        var add = new Button { Content = L.T("Place unit…") }; row.Children.Add(add); add.Click += (_, _) => AddPlacement();
+        var delete = new Button { Content = L.T("Delete unit") }; row.Children.Add(delete); delete.Click += (_, _) => DeletePlacement();
+        var link = new Button { Content = L.T("Link unit to HD"), ToolTip = L.T("Select an HD model in the JSON view and a DS1 unit here. Uses this pair's grid calibration.") }; row.Children.Add(link);
         linkUnitButton = link;
         link.Click += (_, _) =>
         {
@@ -45,7 +45,7 @@ public sealed partial class LegacyFloorWindow
         showUnits.Click += (_, _) => Render();
         move.Click += (_, _) =>
         {
-            if (!int.TryParse(unitX.Text, out int x) || !int.TryParse(unitY.Text, out int y)) { unitStatus.Text = "Enter whole subtile coordinates."; return; }
+            if (!int.TryParse(unitX.Text, out int x) || !int.TryParse(unitY.Text, out int y)) { unitStatus.Text = L.T("Enter whole subtile coordinates."); return; }
             MoveSelectedUnit(x, y);
         };
         // Shift-click places the selected unit. Ordinary inspect clicks pick the nearest marker.
@@ -72,15 +72,15 @@ public sealed partial class LegacyFloorWindow
     private void RefreshUnits()
     {
         int selected = unitList.SelectedIndex; refreshingUnits = true;
-        unitList.ItemsSource = CollisionDocument?.Units.Select(u => $"#{u.Index} · {(u.Type == 1 ? "NPC/monster" : u.Type == 2 ? "Object" : $"Type {u.Type}")} ID {u.Id} · ({u.X}, {u.Y})").ToArray();
+        unitList.ItemsSource = CollisionDocument?.Units.Select(u => L.T("#{0} · {1} ID {2} · ({3}, {4})", u.Index, u.Type == 1 ? L.T("NPC/monster") : u.Type == 2 ? L.T("Object") : L.T("Type {0}", u.Type), u.Id, u.X, u.Y)).ToArray();
         unitList.SelectedIndex = selected < 0 || unitList.Items.Count == 0 ? -1 : Math.Min(selected, unitList.Items.Count - 1);
         refreshingUnits = false; ShowUnit();
     }
     private void ShowUnit()
     {
-        if (CollisionDocument is not { } doc || unitList.SelectedIndex < 0) { unitStatus.Text = CollisionDocument?.GameplayWarning ?? "Select the intended DS1 unit by its marker or list entry. A scenery model does not necessarily have a gameplay unit; use Add collision for its footprint."; return; }
+        if (CollisionDocument is not { } doc || unitList.SelectedIndex < 0) { unitStatus.Text = CollisionDocument?.GameplayWarning ?? L.T("Select the intended DS1 unit by its marker or list entry. A scenery model does not necessarily have a gameplay unit; use Add collision for its footprint."); return; }
         var unit = doc.Units[unitList.SelectedIndex]; unitX.Text = unit.X.ToString(); unitY.Text = unit.Y.ToString();
-        unitStatus.Text = doc.GameplayWarning ?? $"{doc.Units.Count} units · Flags 0x{unit.Flags:X8} · {doc.PatrolPoints(unit.Index).Count} patrol points · Cyan: NPC/monster · Green: object · White: selected. Shift-click to move; linked patrol translates with it. IDs are raw DS1 IDs. Linked models move their assigned unit and collision together from the HD view.";
+        unitStatus.Text = doc.GameplayWarning ?? L.T("{0} units · Flags 0x{1:X8} · {2} patrol points · Cyan: NPC/monster · Green: object · White: selected. Shift-click to move; linked patrol translates with it. IDs are raw DS1 IDs. Linked models move their assigned unit and collision together from the HD view.", doc.Units.Count, unit.Flags, doc.PatrolPoints(unit.Index).Count);
     }
     private void MoveSelectedUnit(int x, int y)
     {

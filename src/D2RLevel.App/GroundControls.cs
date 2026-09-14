@@ -17,21 +17,21 @@ public sealed partial class LegacyFloorWindow
     private void InitializeGround(DockPanel root)
     {
         var row = new WrapPanel(); DockPanel.SetDock(row, Dock.Top); root.Children.Add(row);
-        row.Children.Add(new TextBlock { Text = "Ground", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8) });
+        row.Children.Add(new TextBlock { Text = L.T("Ground"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8) });
         groundLayer.WithReadableItems(); groundSize.WithReadableItems();
         foreach (var key in scene.Tiles.Keys.Where(k => k.Main is >= 0 and <= 63 && k.Sub is >= 0 and <= 255).OrderBy(k => k.Main).ThenBy(k => k.Sub))
         {
             var variants = scene.Tiles[key];
             var entry = new StackPanel { Orientation = Orientation.Horizontal };
             entry.Children.Add(new Image { Source = Bitmap(variants[0]), Width = 64, Height = 32 });
-            entry.Children.Add(new TextBlock { Text = $"{key.Main}:{key.Sub} · {variants.Length} variant(s)", Foreground = Brushes.Black, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
+            entry.Children.Add(new TextBlock { Text = L.T("{0}:{1} · {2} variant(s)", key.Main, key.Sub, variants.Length), Foreground = Brushes.Black, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
             groundPalette.Items.Add(new ComboBoxItem { Content = entry, Tag = Ds1CollisionDocument.FloorKey(key.Main, key.Sub), ToolTip = System.IO.Path.GetFileName(variants[0].Source) });
         }
         groundPalette.SelectedIndex = groundPalette.Items.Count > 0 ? 0 : -1;
-        groundLayer.ItemsSource = Enumerable.Range(1, scene.Map.Layers.Length).Select(i => "Floor " + i).ToArray(); groundLayer.SelectedIndex = 0;
+        groundLayer.ItemsSource = Enumerable.Range(1, scene.Map.Layers.Length).Select(i => L.T("Floor {0}", i)).ToArray(); groundLayer.SelectedIndex = 0;
         row.Children.Add(groundPalette); row.Children.Add(groundLayer);
-        row.Children.Add(new TextBlock { Text = "Brush size", VerticalAlignment = VerticalAlignment.Center }); row.Children.Add(groundSize);
-        var hint = new TextBlock { Text = "Choose Paint floor, Erase floor, Pick floor or Fill floor above. Changes affect gameplay tiles; HD terrain keeps its existing mesh.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8) };
+        row.Children.Add(new TextBlock { Text = L.T("Brush size"), VerticalAlignment = VerticalAlignment.Center }); row.Children.Add(groundSize);
+        var hint = new TextBlock { Text = L.T("Choose Paint floor, Erase floor, Pick floor or Fill floor above. Changes affect gameplay tiles; HD terrain keeps its existing mesh."), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8) };
         DockPanel.SetDock(hint, Dock.Top); root.Children.Add(hint);
         groundPalette.SelectionChanged += (_, _) => CancelStroke(); groundLayer.SelectionChanged += (_, _) => CancelStroke(); groundSize.SelectionChanged += (_, _) => CancelStroke();
     }
@@ -49,10 +49,10 @@ public sealed partial class LegacyFloorWindow
         {
             var cell = scene.FloorAt(strokeLayer, at.Value.X, at.Value.Y);
             groundPalette.SelectedItem = groundPalette.Items.Cast<ComboBoxItem>().FirstOrDefault(i => i.Tag is uint raw && raw == Ds1CollisionDocument.FloorKey(cell.Main, cell.Sub));
-            collisionStatus.Text = cell.IsEmpty ? "Empty floor." : $"Picked floor {cell.Main}:{cell.Sub}.";
+            collisionStatus.Text = cell.IsEmpty ? L.T("Empty floor.") : L.T("Picked floor {0}:{1}.", cell.Main, cell.Sub);
             return false;
         }
-        if (strokeTool != 4 && strokeFloor == 0) { collisionStatus.Text = "Choose a resolved ground tile first."; return false; }
+        if (strokeTool != 4 && strokeFloor == 0) { collisionStatus.Text = L.T("Choose a resolved ground tile first."); return false; }
         if (strokeTool == 6)
         {
             var cells = GroundBrush.Flood(CollisionDocument!, strokeLayer, at.Value.X, at.Value.Y);
@@ -65,7 +65,7 @@ public sealed partial class LegacyFloorWindow
     {
         uint tile = strokeTool == 4 ? 0 : strokeFloor;
         int count = collisionLinks is not null ? collisionLinks.PaintFloor(strokeLayer, cells, tile) : CollisionDocument!.PaintFloor(strokeLayer, cells, tile);
-        CollisionChanged(); collisionStatus.Text = $"{count} floor cells changed · one undo restores this edit. HD terrain geometry is unchanged.";
+        CollisionChanged(); collisionStatus.Text = L.T("{0} floor cells changed · one undo restores this edit. HD terrain geometry is unchanged.", count);
         return count;
     }
 }

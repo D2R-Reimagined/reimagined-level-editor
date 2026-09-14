@@ -15,7 +15,7 @@ public sealed partial class LegacyFloorWindow
         Cursor? previousCursor = null;
         bool previousForceCursor = false;
         scroll.Background = Brushes.Transparent;
-        scroll.ToolTip = "Middle-drag to pan the collision map";
+        scroll.ToolTip = L.T("Middle-drag to pan the collision map");
         void EndPan()
         {
             if (!panning) return;

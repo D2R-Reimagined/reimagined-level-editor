@@ -54,14 +54,14 @@ internal sealed class AnimatedPreview : IDisposable
         try { paths = CharacterAssets.Find(modelPath, resolver); }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         { reason = ex.Message; return null; }
-        if (paths is null) { reason = "No rig and animation set beside this model."; return null; }
+        if (paths is null) { reason = L.T("No rig and animation set beside this model."); return null; }
         try
         {
             var asset = ModelReader.Load(resolve?.Invoke(modelPath, true) ?? resolver.ResolvePreviewModel(modelPath, 0));
-            if (!asset.IsSkinned) { reason = "This mesh carries no skin weights."; return null; }
+            if (!asset.IsSkinned) { reason = L.T("This mesh carries no skin weights."); return null; }
             var rig = CharacterAnimationReader.LoadRig(paths.RigPath);
             var animations = CharacterAnimationReader.LoadAnimations(paths.AnimationsPath, rig);
-            if (animations.Count == 0) { reason = "The animation set is empty."; return null; }
+            if (animations.Count == 0) { reason = L.T("The animation set is empty."); return null; }
 
             var model = new Model3DGroup();
             var geometries = new MeshGeometry3D[asset.Parts.Count];

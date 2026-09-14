@@ -38,24 +38,24 @@ public sealed partial class LegacyFloorWindow
     private void InitializeFootprint(DockPanel root, ModelFootprint? footprint)
     {
         var bar = new WrapPanel(); DockPanel.SetDock(bar, Dock.Top); root.Children.Add(bar);
-        var name = new TextBlock { Text = "HD selection: " + (footprint?.Name ?? "Select a rendered model"), Margin = new Thickness(8) }; bar.Children.Add(name);
+        var name = new TextBlock { Text = L.T("HD selection: {0}", footprint?.Name ?? L.T("Select a rendered model")), Margin = new Thickness(8) }; bar.Children.Add(name);
         var units = new TextBlock { Margin = new Thickness(6), VerticalAlignment = VerticalAlignment.Center,
-            Foreground = Brushes.LightSteelBlue, ToolTip = "Set in the main window's grid calibration. An existing link keeps the scale it was created with." };
+            Foreground = Brushes.LightSteelBlue, ToolTip = L.T("Set in the main window's grid calibration. An existing link keeps the scale it was created with.") };
         bar.Children.Add(units);
-        void ShowScale() => units.Text = LinkUnitsPerTile.ToString("0.####", CultureInfo.InvariantCulture) + " HD units/tile";
+        void ShowScale() => units.Text = L.T("{0} HD units/tile", LinkUnitsPerTile.ToString("0.####", CultureInfo.InvariantCulture));
         ShowScale();
-        var preview = new Button { Content = "Suggest model footprint" }; bar.Children.Add(preview);
-        var apply = new Button { Content = "Apply suggested blocking", IsEnabled = false }; bar.Children.Add(apply);
-        var link = new Button { Content = "Link footprint to HD", IsEnabled = false }; bar.Children.Add(link);
-        var review = new Button { Content = "Edit linked collision", IsEnabled = false }; bar.Children.Add(review);
-        var edit = footprintDraw = new CheckBox { Content = "Draw footprint", IsEnabled = CollisionDocument is not null, Foreground = Brushes.White, Margin = new Thickness(6),
-            ToolTip = "Left-drag on the map to add or remove footprint tiles. Start on a selected tile to erase, or an empty tile to add. Nothing changes until Save collision link." }; bar.Children.Add(edit);
-        var remove = new Button { Content = "Remove collision link", IsEnabled = false,
-            ToolTip = "Remove only this model's collision contribution, preserving other owners and protected blocking. Its unit link stays attached. Undo restores it." }; bar.Children.Add(remove);
-        var claim = new CheckBox { Content = "Claim existing floor overrides", Foreground = Brushes.White, Margin = new Thickness(6),
-            ToolTip = "Enable only if the existing painted blocking belongs to this model. Moving will clear that override at its old position. DT1 and wall blocking are preserved." }; bar.Children.Add(claim);
+        var preview = new Button { Content = L.T("Suggest model footprint") }; bar.Children.Add(preview);
+        var apply = new Button { Content = L.T("Apply suggested blocking"), IsEnabled = false }; bar.Children.Add(apply);
+        var link = new Button { Content = L.T("Link footprint to HD"), IsEnabled = false }; bar.Children.Add(link);
+        var review = new Button { Content = L.T("Edit linked collision"), IsEnabled = false }; bar.Children.Add(review);
+        var edit = footprintDraw = new CheckBox { Content = L.T("Draw footprint"), IsEnabled = CollisionDocument is not null, Foreground = Brushes.White, Margin = new Thickness(6),
+            ToolTip = L.T("Left-drag on the map to add or remove footprint tiles. Start on a selected tile to erase, or an empty tile to add. Nothing changes until Save collision link.") }; bar.Children.Add(edit);
+        var remove = new Button { Content = L.T("Remove collision link"), IsEnabled = false,
+            ToolTip = L.T("Remove only this model's collision contribution, preserving other owners and protected blocking. Its unit link stays attached. Undo restores it.") }; bar.Children.Add(remove);
+        var claim = new CheckBox { Content = L.T("Claim existing floor overrides"), Foreground = Brushes.White, Margin = new Thickness(6),
+            ToolTip = L.T("Enable only if the existing painted blocking belongs to this model. Moving will clear that override at its old position. DT1 and wall blocking are preserved.") }; bar.Children.Add(claim);
         suggestFootprint = preview; applyFootprint = apply;
-        var clear = new Button { Content = "Dismiss suggestion" }; bar.Children.Add(clear);
+        var clear = new Button { Content = L.T("Dismiss suggestion") }; bar.Children.Add(clear);
         (int X, int Y)[] suggestion = [];
         bool drafting = false, drawing = false, adding = false;
         HashSet<(int X, int Y)> visited = [];
@@ -76,7 +76,7 @@ public sealed partial class LegacyFloorWindow
             if (current?.Unit is { } linkedUnit && unitList.SelectedIndex != linkedUnit.Index) unitList.SelectedIndex = linkedUnit.Index;
             review.IsEnabled = remove.IsEnabled = current?.Tiles.Length > 0;
             ShowScale();
-            link.Content = current?.Tiles.Length > 0 ? "Save collision link" : "Link footprint to HD";
+            link.Content = current?.Tiles.Length > 0 ? L.T("Save collision link") : L.T("Link footprint to HD");
         };
         void DrawDraft()
         {
@@ -98,7 +98,7 @@ public sealed partial class LegacyFloorWindow
             }
             apply.IsEnabled = suggestion.Length > 0 && !review.IsEnabled;
             link.IsEnabled = LinkFootprintRequested is not null && (suggestion.Length > 0 || review.IsEnabled);
-            collisionStatus.Text = $"Draft: {suggestion.Length} tiles · {shared} shared with other models (magenta) · {protectedCells} with protected floor blocking. Cyan: this footprint. Draw footprint to refine; Save/Link commits one undoable edit. Existing DT1/wall blocking stays in place.";
+            collisionStatus.Text = L.T("Draft: {0} tiles · {1} shared with other models (magenta) · {2} with protected floor blocking. Cyan: this footprint. Draw footprint to refine; Save/Link commits one undoable edit. Existing DT1/wall blocking stays in place.", suggestion.Length, shared, protectedCells);
         }
         reviewCollision = () =>
         {
@@ -137,7 +137,7 @@ public sealed partial class LegacyFloorWindow
         {
             if (Equals(footprint, next)) return;
             Dismiss(); footprint = next; preview.IsEnabled = next is not null;
-            name.Text = "HD selection: " + (next?.Name ?? "Select a rendered model") + " · HD units/tile";
+            name.Text = L.T("HD selection: {0}", next?.Name ?? L.T("Select a rendered model"));
         };
         clear.Click += (_, _) => Dismiss();
         CollisionViewChanged += Dismiss;
@@ -163,7 +163,7 @@ public sealed partial class LegacyFloorWindow
             try
             {
                 int changed = CollisionDocument!.Paint(suggestion, true); Dismiss(); CollisionChanged();
-                collisionStatus.Text = $"Applied {changed} suggested layer cells. Ctrl+Z undoes this footprint; save a DS1 copy to export it.";
+                collisionStatus.Text = L.T("Applied {0} suggested layer cells. Ctrl+Z undoes this footprint; save a DS1 copy to export it.", changed);
             }
             catch (Exception ex) { collisionStatus.Text = ex.Message; }
         };

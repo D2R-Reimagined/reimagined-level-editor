@@ -15,6 +15,26 @@
     <Resource Include="Assets/ReimaginedLevelEditor.ico" />
     <ProjectReference Include="../D2RLevel.Assets/D2RLevel.Assets.csproj" />
     <Content Include="Native/granny2.dll" Condition="Exists('Native/granny2.dll') and '$(IncludeGrannyRuntime)' != 'false'" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="lang/*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="lang/README.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <Content Include="Native/NOTICE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
+  <!--
+    Regenerates lang/en.json from the L.T("…") / {l:T '…'} literals in this project and adds any new
+    strings (blank) to every other language file, so translators only ever fill in gaps. The checks
+    project hosts the extractor; it is built first and run directly. Skipped for design-time builds
+    and when the repository layout is not present (e.g. building from a source ZIP without tests).
+    Pass -p:UpdateTranslations=false to leave the files alone.
+  -->
+  <Target Name="UpdateTranslations" BeforeTargets="BeforeBuild"
+          Condition="'$(UpdateTranslations)' != 'false' and '$(DesignTimeBuild)' != 'true' and Exists('$(MSBuildProjectDirectory)/../../tests/D2RLevel.Tests/D2RLevel.Tests.csproj')">
+    <MSBuild Projects="$(MSBuildProjectDirectory)/../../tests/D2RLevel.Tests/D2RLevel.Tests.csproj" Targets="Build">
+      <Output TaskParameter="TargetOutputs" ItemName="TranslationTool" />
+    </MSBuild>
+    <PropertyGroup>
+      <TranslationHost Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</TranslationHost>
+      <TranslationHost Condition="'$(TranslationHost)' == ''">dotnet</TranslationHost>
+    </PropertyGroup>
+    <Exec Command="&quot;$(TranslationHost)&quot; &quot;@(TranslationTool)&quot; --strings-update &quot;$(MSBuildProjectDirectory)/../..&quot;" StandardOutputImportance="low" />
+  </Target>
 </Project>

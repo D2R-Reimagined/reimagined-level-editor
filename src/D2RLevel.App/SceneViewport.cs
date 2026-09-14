@@ -363,7 +363,7 @@ public sealed class SceneViewport : Grid
         FrameSelected(); workRadius = 80; distance = 160;
         travelStep = 4.8;
         workCenter = target;
-        modeLabel.Text = "LOCAL EDITING AREA · about 80 units around focus · Home restores the whole map";
+        modeLabel.Text = L.T("LOCAL EDITING AREA · about 80 units around focus · Home restores the whole map");
         UpdateCamera();
         return true;
     }

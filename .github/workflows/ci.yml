@@ -47,6 +47,17 @@ jobs:
           dotnet run --project tests/D2RLevel.Tests -c Release --no-build
           if ($LASTEXITCODE -ne 0) { throw 'Editor checks failed.' }
 
+      # Language files are contributed by hand; report their coverage and refuse
+      # drift from the source strings.
+      - name: Check translations
+        run: |
+          dotnet run --project tests/D2RLevel.Tests -c Release --no-build -- --strings-audit
+          if ($LASTEXITCODE -ne 0) { throw 'Translation files are out of sync with the app; see lang/README.md.' }
+          # The build regenerates lang/en.json and pads the other files; a diff here means
+          # UI text changed without the regenerated files being committed.
+          $drift = git status --porcelain -- src/D2RLevel.App/lang
+          if ($drift) { Write-Host $drift; throw 'Build regenerated language files that are not committed. Build locally and commit src/D2RLevel.App/lang.' }
+
       - name: Verify release automation scripts
         run: ./.github/scripts/Test-ReleaseAutomation.ps1
 

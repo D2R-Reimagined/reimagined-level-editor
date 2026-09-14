@@ -11,9 +11,9 @@ namespace D2RLevel.App;
 
 public sealed partial class LegacyFloorWindow
 {
-    private readonly CheckBox showCollision = new() { Content = "Collision", Foreground = Brushes.White, IsChecked = true, Margin = new Thickness(8) };
-    private readonly ComboBox collisionTool = new() { ItemsSource = new[] { "Inspect", "Paint blocked", "Clear DS1 override", "Paint floor", "Erase floor", "Pick floor", "Fill floor", "Rectangle floor" }, Foreground = Brushes.Black, SelectedIndex = 0, Width = 170, Margin = new Thickness(8) };
-    private readonly Button collisionUndo = new() { Content = "Undo" }, collisionRedo = new() { Content = "Redo" };
+    private readonly CheckBox showCollision = new() { Content = L.T("Collision"), Foreground = Brushes.White, IsChecked = true, Margin = new Thickness(8) };
+    private readonly ComboBox collisionTool = new() { ItemsSource = new[] { L.T("Inspect"), L.T("Paint blocked"), L.T("Clear DS1 override"), L.T("Paint floor"), L.T("Erase floor"), L.T("Pick floor"), L.T("Fill floor"), L.T("Rectangle floor") }, Foreground = Brushes.Black, SelectedIndex = 0, Width = 170, Margin = new Thickness(8) };
+    private readonly Button collisionUndo = new() { Content = L.T("Undo") }, collisionRedo = new() { Content = L.T("Redo") };
     private readonly TextBlock collisionStatus = new() { Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
     private readonly Canvas strokePreview = new() { IsHitTestVisible = false };
     private readonly HashSet<(int X, int Y)> stroke = new();
@@ -29,19 +29,19 @@ public sealed partial class LegacyFloorWindow
         DockPanel.SetDock(tools, Dock.Top); root.Children.Add(tools);
         tools.Children.Add(showCollision); tools.Children.Add(collisionTool);
         tools.Children.Add(collisionUndo); tools.Children.Add(collisionRedo);
-        var save = new Button { Content = CollisionDocument?.History.Shared == true ? "Save scene / pair…" : "Save DS1 copy…" }; tools.Children.Add(save);
+        var save = new Button { Content = CollisionDocument?.History.Shared == true ? L.T("Save scene / pair…") : L.T("Save DS1 copy…") }; tools.Children.Add(save);
         showCollision.Click += (_, _) => Render();
         collisionTool.SelectionChanged += (_, _) => { CancelStroke(); image.Cursor = collisionTool.SelectedIndex == 0 ? Cursors.Arrow : Cursors.Cross; };
         collisionUndo.Click += (_, _) => { CancelStroke(); CollisionDocument?.Undo(); CollisionChanged(); };
         collisionRedo.Click += (_, _) => { CancelStroke(); CollisionDocument?.Redo(); CollisionChanged(); };
         save.Click += (_, _) => SaveCollisionCopy();
-        var load = new Button { Content = "Open DS1 copy…" }; tools.Children.Add(load);
-        var arrange = new Button { Content = "Arrange beside HD" }; tools.Children.Add(arrange);
+        var load = new Button { Content = L.T("Open DS1 copy…") }; tools.Children.Add(load);
+        var arrange = new Button { Content = L.T("Arrange beside HD") }; tools.Children.Add(arrange);
         arrange.Click += (_, _) =>
         {
             if (Owner is not { } hd) return;
             var work = SystemParameters.WorkArea;
-            if (work.Width < hd.MinWidth + 650) { collisionStatus.Text = "Use a wider display for side-by-side layout, or move the DS1 window to another monitor."; return; }
+            if (work.Width < hd.MinWidth + 650) { collisionStatus.Text = L.T("Use a wider display for side-by-side layout, or move the DS1 window to another monitor."); return; }
             hd.WindowState = WindowState.Normal; WindowState = WindowState.Normal;
             double split = Math.Max(hd.MinWidth, work.Width * .58);
             hd.Left = work.Left; hd.Top = work.Top; hd.Width = split; hd.Height = work.Height;
@@ -55,7 +55,7 @@ public sealed partial class LegacyFloorWindow
             if (CollisionDocument?.History.Shared == true) return;
             if (CollisionDocument?.IsDirty == true)
             {
-                if (MessageBox.Show(this, "Discard unsaved DS1 edits?", "DS1 gameplay", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) e.Cancel = true;
+                if (MessageBox.Show(this, L.T("Discard unsaved DS1 edits?"), L.T("DS1 gameplay"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) e.Cancel = true;
                 else { CollisionDocument.DiscardChanges(); CollisionChanged(); }
             }
         };
@@ -72,7 +72,7 @@ public sealed partial class LegacyFloorWindow
     private void RefreshCollisionState()
     {
         collisionUndo.IsEnabled = CollisionDocument?.CanUndo == true; collisionRedo.IsEnabled = CollisionDocument?.CanRedo == true;
-        Title = "DS1 gameplay and collision · " + System.IO.Path.GetFileName(scene.Ds1Path) + (CollisionDocument?.IsDirty == true ? " *" : "");
+        Title = L.T("DS1 gameplay and collision · {0}", System.IO.Path.GetFileName(scene.Ds1Path)) + (CollisionDocument?.IsDirty == true ? " *" : "");
     }
     private event Action? CollisionViewChanged;
     public event Action? SceneChanged;
@@ -83,31 +83,31 @@ public sealed partial class LegacyFloorWindow
     {
         CancelStroke(); if (CollisionDocument is not { } doc) return;
         if (doc.History.Shared) { SaveWorkspaceRequested?.Invoke(); return; }
-        var dialog = new SaveFileDialog { Filter = "Diablo II preset|*.ds1", FileName = System.IO.Path.GetFileNameWithoutExtension(scene.Ds1Path) + ".edited.ds1", Title = "Save a separate DS1 gameplay/collision copy" };
+        var dialog = new SaveFileDialog { Filter = L.T("Diablo II preset") + "|*.ds1", FileName = System.IO.Path.GetFileNameWithoutExtension(scene.Ds1Path) + ".edited.ds1", Title = L.T("Save a separate DS1 gameplay/collision copy") };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
             if (string.Equals(System.IO.Path.GetFullPath(dialog.FileName), System.IO.Path.GetFullPath(scene.Ds1Path), StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Choose a copy path; the original DS1 cannot be overwritten.");
-            doc.SaveCopy(dialog.FileName); RefreshCollisionState(); SceneChanged?.Invoke(); collisionStatus.Text = "Saved and verified DS1: " + dialog.FileName;
-            ToastManager.Show(this, "DS1 saved", dialog.FileName);
+            doc.SaveCopy(dialog.FileName); RefreshCollisionState(); SceneChanged?.Invoke(); collisionStatus.Text = L.T("Saved and verified DS1: {0}", dialog.FileName);
+            ToastManager.Show(this, L.T("DS1 saved"), dialog.FileName);
         }
-        catch (Exception ex) { collisionStatus.Text = ex.Message; ToastManager.Show(this, "Save failed", ex.Message, true); }
+        catch (Exception ex) { collisionStatus.Text = ex.Message; ToastManager.Show(this, L.T("Save failed"), ex.Message, true); }
     }
     private void OpenCollisionCopy()
     {
         CancelStroke();
-        if (CollisionDocument?.History.Shared == true) { collisionStatus.Text = "Open the exported linked JSON in the main window to replace both documents together."; return; }
-        var dialog = new OpenFileDialog { Filter = "Diablo II preset|*.ds1", Title = "Open an edited copy of this DS1" };
+        if (CollisionDocument?.History.Shared == true) { collisionStatus.Text = L.T("Open the exported linked JSON in the main window to replace both documents together."); return; }
+        var dialog = new OpenFileDialog { Filter = L.T("Diablo II preset") + "|*.ds1", Title = L.T("Open an edited copy of this DS1") };
         if (dialog.ShowDialog(this) != true) return;
         try
         {
             var copy = Ds1CollisionDocument.Load(dialog.FileName);
             var original = Ds1CollisionDocument.Load(scene.Ds1Path);
             if (!original.SameUneditedData(copy)) throw new InvalidDataException("This DS1 contains changes beyond collision and unit/path positions; open it with its own tileset context.");
-            if (CollisionDocument?.IsDirty == true && MessageBox.Show(this, "Discard unsaved DS1 edits and open this copy?", "DS1 collision", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (CollisionDocument?.IsDirty == true && MessageBox.Show(this, L.T("Discard unsaved DS1 edits and open this copy?"), L.T("DS1 collision"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             scene = scene with { Collision = new(copy, scene.Dt1Paths.SelectMany(LegacyCollision.ReadTiles)) };
-            CollisionChanged(); collisionStatus.Text = "Opened edited DS1 copy: " + dialog.FileName;
+            CollisionChanged(); collisionStatus.Text = L.T("Opened edited DS1 copy: {0}", dialog.FileName);
         }
         catch (Exception ex) { collisionStatus.Text = ex.Message; }
     }
@@ -147,7 +147,7 @@ public sealed partial class LegacyFloorWindow
         {
             if (strokeTool >= 3) { ApplyGround(cells); return; }
             int changed = CollisionDocument!.Paint(cells, block);
-            CollisionChanged(); collisionStatus.Text = $"{changed} layer cells changed · Ctrl+Z undoes the stroke. " + (block ? "Empty floor cells are skipped." : "DT1 blocking remains in effect.");
+            CollisionChanged(); collisionStatus.Text = L.T("{0} layer cells changed · Ctrl+Z undoes the stroke. ", changed) + (block ? L.T("Empty floor cells are skipped.") : L.T("DT1 blocking remains in effect."));
         }
         catch (Exception ex) { collisionStatus.Text = ex.Message; }
     }
@@ -206,7 +206,7 @@ public sealed partial class LegacyFloorWindow
                 for (int bx = Math.Max(0, x - radius); bx <= Math.Min(scene.Map.Width - 1, x + radius); bx++) AddCell(bx, by);
         }
         lastTile = current;
-        collisionStatus.Text = $"Preview: {stroke.Count} tiles · Release to apply · Esc cancels";
+        collisionStatus.Text = L.T("Preview: {0} tiles · Release to apply · Esc cancels", stroke.Count);
         void AddCell(int x, int y)
         {
             if (blockStroke && !CollisionDocument!.CanBlock(x, y)) return;
@@ -225,8 +225,8 @@ public sealed partial class LegacyFloorWindow
     {
         if (scene.Collision is not { } collision) return;
         var tile = collision.At(x, y);
-        collisionStatus.Text = $"Tile ({x}, {y}): {tile.BlockedSubtiles}/25 subtiles block movement · DS1 override: {tile.Override} · No floor: {tile.NoFloor}" +
-            (tile.Unresolved ? " · UNRESOLVED tile contribution" : "") + (tile.VariantDependent ? " · Variant-dependent (combined preview)" : "");
+        collisionStatus.Text = L.T("Tile ({0}, {1}): {2}/25 subtiles block movement · DS1 override: {3} · No floor: {4}", x, y, tile.BlockedSubtiles, tile.Override, tile.NoFloor) +
+            (tile.Unresolved ? " · " + L.T("UNRESOLVED tile contribution") : "") + (tile.VariantDependent ? " · " + L.T("Variant-dependent (combined preview)") : "");
     }
     private void DrawCollision(DrawingContext dc)
     {

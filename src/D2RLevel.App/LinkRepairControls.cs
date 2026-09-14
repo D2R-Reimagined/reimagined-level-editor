@@ -14,13 +14,13 @@ public partial class MainWindow
     /// </summary>
     private void ReviewLinks_Click(object sender, RoutedEventArgs e)
     {
-        if (placementLinks is not { Warning: null } links) { Status.Text = "Load the JSON and matching DS1 first."; return; }
+        if (placementLinks is not { Warning: null } links) { Status.Text = L.T("Load the JSON and matching DS1 first."); return; }
         var broken = links.LinkStates.Where(l => !l.IsHealthy).ToArray();
-        if (broken.Length == 0) { Status.Text = "Every link in this pair is intact."; RefreshLinkStatus(); return; }
+        if (broken.Length == 0) { Status.Text = L.T("Every link in this pair is intact."); RefreshLinkStatus(); return; }
 
         var dialog = new Window
         {
-            Title = "Review broken links", Owner = this, Width = 720, Height = 560,
+            Title = L.T("Review broken links"), Owner = this, Width = 720, Height = 560,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = new SolidColorBrush(Color.FromRgb(32, 40, 51)), Foreground = new SolidColorBrush(Color.FromRgb(230, 237, 244)),
         };
@@ -29,16 +29,14 @@ public partial class MainWindow
 
         var heading = new TextBlock
         {
-            Text = $"{broken.Length} of {links.Links.Count} links no longer match this pair.",
+            Text = L.T("{0} of {1} links no longer match this pair.", broken.Length, links.Links.Count),
             FontWeight = FontWeights.Bold, FontSize = 15, Margin = new Thickness(0, 0, 0, 8),
         };
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
 
         var explanation = new TextBlock
         {
-            Text = "Something these links describe changed outside this workspace. They are not moving anything, " +
-                   "and the collision they used to own is editable again. Every other link keeps working.\n" +
-                   "Discarding a link removes only the editor's record. No DS1 byte, placement or HD model changes, and one undo restores it.",
+            Text = L.T("Something these links describe changed outside this workspace. They are not moving anything, and the collision they used to own is editable again. Every other link keeps working.\nDiscarding a link removes only the editor's record. No DS1 byte, placement or HD model changes, and one undo restores it."),
             TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.FromRgb(154, 175, 196)), Margin = new Thickness(0, 0, 0, 12),
         };
         DockPanel.SetDock(explanation, Dock.Top); root.Children.Add(explanation);
@@ -58,8 +56,8 @@ public partial class MainWindow
             var current = links.LinkStates.Where(l => !l.IsHealthy).ToArray();
             list.ItemsSource = current;
             heading.Text = current.Length == 0
-                ? "Every link in this pair is intact."
-                : $"{current.Length} of {links.Links.Count} links no longer match this pair.";
+                ? L.T("Every link in this pair is intact.")
+                : L.T("{0} of {1} links no longer match this pair.", current.Length, links.Links.Count);
         }
         list.ItemTemplate = BrokenLinkTemplate();
         Populate();
@@ -71,23 +69,23 @@ public partial class MainWindow
                 Scene.CancelDrag();
                 // The recorded edit raises the shared history event, which refreshes both views.
                 int count = links.DiscardBrokenLinks(ids);
-                if (count == 0) { Status.Text = "Nothing to discard."; return; }
+                if (count == 0) { Status.Text = L.T("Nothing to discard."); return; }
                 Populate(); RefreshLinkStatus(); RefreshState();
-                Status.Text = $"Discarded {count} broken link{(count == 1 ? "" : "s")} ({label}). Map data unchanged; Ctrl+Z restores the records.";
-                Notify("Broken links discarded", $"{count} link record{(count == 1 ? "" : "s")} removed.\nNo DS1 or HD data changed. Ctrl+Z to undo.");
+                Status.Text = L.T("Discarded {0} broken link(s) ({1}). Map data unchanged; Ctrl+Z restores the records.", count, label);
+                Notify(L.T("Broken links discarded"), L.T("{0} link record(s) removed.\nNo DS1 or HD data changed. Ctrl+Z to undo.", count));
                 if (!links.HasBrokenLinks) dialog.Close();
             }
             catch (Exception ex) { Error(ex); }
         }
 
-        var discardSelected = new Button { Content = "Discard selected", Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
-        discardSelected.Click += (_, _) => Discard(list.SelectedItems.OfType<LinkHealth>().Select(l => l.Link.EntityId).ToArray(), "selected");
+        var discardSelected = new Button { Content = L.T("Discard selected"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
+        discardSelected.Click += (_, _) => Discard(list.SelectedItems.OfType<LinkHealth>().Select(l => l.Link.EntityId).ToArray(), L.T("selected"));
         list.SelectionChanged += (_, _) => discardSelected.IsEnabled = list.SelectedItems.Count > 0;
 
-        var discardAll = new Button { Content = "Discard all broken", Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
-        discardAll.Click += (_, _) => Discard(null, "all broken");
+        var discardAll = new Button { Content = L.T("Discard all broken"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
+        discardAll.Click += (_, _) => Discard(null, L.T("all broken"));
 
-        var close = new Button { Content = "Close", Padding = new Thickness(12, 5, 12, 5), IsCancel = true };
+        var close = new Button { Content = L.T("Close"), Padding = new Thickness(12, 5, 12, 5), IsCancel = true };
         footer.Children.Add(discardSelected); footer.Children.Add(discardAll); footer.Children.Add(close);
 
         dialog.ShowDialog();
