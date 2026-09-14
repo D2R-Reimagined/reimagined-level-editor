@@ -1,7 +1,7 @@
 {
   "$language": "한국어",
-  "GRID CALIBRATION": "격자 보정",
   "$note": "기계 번역 초안입니다. 한국어 원어민의 검토와 수정을 환영합니다. README.md를 참조하세요.",
+  "GRID CALIBRATION": "격자 보정",
   "#{0} · {1} ID {2} · ({3}, {4})": "#{0} · {1} ID {2} · ({3}, {4})",
   "(marker)": "(마커)",
   "ASSET DIAGNOSTICS": "에셋 진단",
