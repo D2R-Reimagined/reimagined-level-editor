@@ -1,4 +1,4 @@
-{
+﻿{
   "$language": "Español",
   "$note": "Primer borrador hecho con traducción automática. Se agradecen correcciones de hablantes nativos; consulta README.md.",
   "#{0} · {1} ID {2} · ({3}, {4})": "#{0} · {1} ID {2} · ({3}, {4})",
@@ -379,5 +379,7 @@
   "{0}/{1} model instances loaded · {2} missing/unsupported markers · {3} diagnostics": "{0}/{1} instancias de modelo cargadas · {2} marcadores faltantes/no compatibles · {3} diagnósticos",
   "{0}/{1} models loaded · {2} need a Granny decoder — click Granny decoder…": "{0}/{1} modelos cargados · {2} necesitan un decodificador Granny: haz clic en Decodificador Granny…",
   "{0}: {1} assets. Click any member to select the group. Group metadata is saved beside the preset.": "{0}: {1} assets. Haz clic en cualquier miembro para seleccionar el grupo. Los metadatos del grupo se guardan junto al preset.",
-  "{0}:{1} · {2} variant(s)": "{0}:{1} · {2} variante(s)"
+  "{0}:{1} · {2} variant(s)": "{0}:{1} · {2} variante(s)",
+  "Back to the open scene.": "Volver a la escena abierta.",
+  "Back to the workspace scene list. This scene stays open.": "Volver a la lista de escenas del espacio de trabajo. Esta escena permanece abierta."
 }

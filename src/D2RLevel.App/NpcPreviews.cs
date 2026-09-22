@@ -32,14 +32,19 @@ internal static class NpcPreviewLoader
                 var rootTransform = entities.SelectMany(e => e["components"]!.AsArray().OfType<JsonObject>()).FirstOrDefault(c => (string?)c["type"] == "TransformDefinitionComponent");
                 double Scale(string axis) => (double?)rootTransform?["scale"]?[axis] ?? 1;
                 var model = new Model3DGroup { Transform = new ScaleTransform3D(Scale("x"), Scale("y"), Scale("z")) };
+                int unavailable = 0;
                 foreach (var component in entities.SelectMany(e => e["components"]!.AsArray().OfType<JsonObject>()).Where(c => (string?)c["type"] == "ModelDefinitionComponent"))
                 {
                     var preview = SceneLoader.Load(PresetDocument.ModelPreview((string)component["filename"]!), assets, progress, token, false, catalog.Resolve);
                     messages.AddRange(preview.Diagnostics.Where(m => m.StartsWith("Model ") || m.StartsWith("Texture ")));
-                    if (preview.Items.Count == 0 || preview.Items[0].IsPlaceholder) throw new InvalidDataException("Character mesh unavailable.");
+                    // One unavailable part (a missing weapon, a definition pointing at an absent
+                    // mesh) leaves the rest of the character worth showing, so it is reported
+                    // rather than reducing the whole unit to a marker.
+                    if (preview.Items.Count == 0 || preview.Items[0].IsPlaceholder) { unavailable++; continue; }
                     model.Children.Add(preview.Items[0].Geometry);
                 }
-                if (model.Children.Count == 0) throw new InvalidDataException("No static character meshes.");
+                if (model.Children.Count == 0) throw new InvalidDataException("Character mesh unavailable.");
+                if (unavailable > 0) messages.Add($"NPC {name}: {unavailable} of {unavailable + model.Children.Count} meshes unavailable; preview is incomplete.");
                 model.Freeze(); visuals[unit.Id] = new(name, model, false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -64,6 +69,8 @@ public partial class MainWindow
         {
             var selected = SelectedEntities;
             var existing = npcItems.Select(i => i.Entity).ToDictionary(e => e.GameplayUnitIndex!.Value);
+            // Built once per refresh so a recalibrated grid resizes every marker with the scene.
+            Model3DGroup? marker = null;
             foreach (var item in npcItems) Scene.RemoveItem(item.Entity);
             npcItems.Clear();
             if (document is not null && ShowNpcs.IsChecked == true && pairedScene?.Collision is { } collision)
@@ -76,7 +83,11 @@ public partial class MainWindow
                     var entity = existing.TryGetValue(unit.Index, out var previous) && previous.Name == name
                         ? previous : PresetEntity.GameplayPreview(unit.Index, name, transform);
                     entity.UpdateGameplayTransform(transform);
-                    var item = new SceneItem(entity, visual.Geometry, visual.Missing); npcItems.Add(item); Scene.AddItem(item);
+                    // place_nothing is a preset entry that deliberately spawns nothing, so it keeps
+                    // the small proxy; every other unresolved unit gets a marker sized to the grid.
+                    var geometry = visual.Missing && !visual.Name.Equals("place_nothing", StringComparison.OrdinalIgnoreCase)
+                        ? marker ??= SceneViewport.UnitMarker(Ds1Preview.UnitsPerTile) : visual.Geometry;
+                    var item = new SceneItem(entity, geometry, visual.Missing); npcItems.Add(item); Scene.AddItem(item);
                 }
             Filter();
             SetSelection(selected.Select(e => e.GameplayUnitIndex is { } index ? npcItems.FirstOrDefault(i => i.Entity.GameplayUnitIndex == index)?.Entity : e).OfType<PresetEntity>());

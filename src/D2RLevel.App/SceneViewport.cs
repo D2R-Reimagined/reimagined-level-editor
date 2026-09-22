@@ -592,6 +592,24 @@ public sealed class SceneViewport : Grid
         group.Children.Add(Box(new Rect3D(-0.35, 0, -0.35, 0.7, 3, 0.7), new DiffuseMaterial(Brushes.DarkGoldenrod)));
         group.Freeze(); return group;
     }
+    /// <summary>
+    /// A DS1 unit the editor could not give character art to — a run-time spawn placement code,
+    /// or a monster whose HD definition is absent. Sized from the grid so it reads as "a unit
+    /// stands here" while a whole scene is in view, and coloured apart from <see cref="Placeholder"/>
+    /// so it is never mistaken for a missing HD preset model.
+    /// </summary>
+    public static Model3DGroup UnitMarker(double unitsPerTile)
+    {
+        double side = Math.Max(1, unitsPerTile * 0.8), height = side * 2, post = side * 0.16;
+        var group = WireBox(new Rect3D(-side / 2, 0, -side / 2, side, height, side), Color.FromRgb(139, 210, 212));
+        group.Children.Add(Box(new Rect3D(-post / 2, 0, -post / 2, post, height, post),
+            new EmissiveMaterial(new SolidColorBrush(Color.FromRgb(72, 140, 150)))));
+        // A pad on the ground shows which tile the unit occupies from the overhead angle a scene
+        // is usually reviewed at, where the box outline is too thin to read.
+        group.Children.Add(Box(new Rect3D(-side / 2, 0, -side / 2, side, side * 0.04, side),
+            new EmissiveMaterial(new SolidColorBrush(Color.FromRgb(38, 82, 90)))));
+        group.Freeze(); return group;
+    }
     private static Model3DGroup WireBox(Rect3D b, Color color)
     {
         var group = new Model3DGroup();

@@ -56,7 +56,10 @@
       <Border Grid.Column="0" Background="#202833" Padding="10">
         <Grid>
         <DockPanel x:Name="WorkspaceBrowser" Visibility="Collapsed">
-          <TextBlock DockPanel.Dock="Top" Text="{l:T 'WORKSPACE SCENES'}" FontWeight="Bold" Margin="4,8"/>
+          <DockPanel DockPanel.Dock="Top" Margin="0,8">
+            <Button x:Name="BackToSceneButton" DockPanel.Dock="Right" Style="{StaticResource PanelChevron}" Content="&#x203A;" Visibility="Collapsed" Click="BackToScene_Click" ToolTip="{l:T 'Back to the open scene.'}"/>
+            <TextBlock Text="{l:T 'WORKSPACE SCENES'}" FontWeight="Bold" Margin="4,0" VerticalAlignment="Center"/>
+          </DockPanel>
           <ComboBox x:Name="RecentWorkspaces" DockPanel.Dock="Top" SelectionChanged="RecentWorkspaces_SelectionChanged" ToolTip="{l:T 'Recently opened workspaces'}">
             <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Foreground="Black" TextTrimming="CharacterEllipsis" ToolTip="{Binding}"/></DataTemplate></ComboBox.ItemTemplate>
           </ComboBox>
@@ -95,7 +98,10 @@
           </ListBox>
         </DockPanel>
         <DockPanel x:Name="EntityBrowser">
-          <TextBlock DockPanel.Dock="Top" Text="{l:T 'SCENE ENTITIES'}" FontWeight="Bold" Margin="4,8"/>
+          <DockPanel DockPanel.Dock="Top" Margin="0,8">
+            <Button x:Name="BackToWorkspaceButton" DockPanel.Dock="Left" Style="{StaticResource PanelChevron}" Content="&#x2039;" Visibility="Collapsed" Click="BackToWorkspace_Click" ToolTip="{l:T 'Back to the workspace scene list. This scene stays open.'}"/>
+            <TextBlock Text="{l:T 'SCENE ENTITIES'}" FontWeight="Bold" Margin="4,0" VerticalAlignment="Center"/>
+          </DockPanel>
           <TextBox x:Name="Search" DockPanel.Dock="Top" ToolTip="{l:T 'Filter names and model paths'}" TextChanged="Search_Changed"/>
           <TextBlock x:Name="EntityCount" DockPanel.Dock="Bottom" Foreground="#9AAFC4" Margin="4,8"/>
           <ListBox x:Name="Hierarchy" SelectionMode="Extended" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">

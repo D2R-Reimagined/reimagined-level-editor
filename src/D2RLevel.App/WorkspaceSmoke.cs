@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -61,6 +61,19 @@ public partial class MainWindow
         using (var stream = File.Create(Path.Combine(output, "save-toast.png"))) savedEncoder.Save(stream);
         if (document.IsDirty || editable.IsDirty || !File.Exists(jsonPath + PlacementLinks.Suffix) || !File.Exists(jsonPath + ".bak"))
             throw new InvalidOperationException("Save Scene did not persist all files.");
+        BackToWorkspace_Click(this, new());
+        if (WorkspaceBrowser.Visibility != Visibility.Visible || EntityBrowser.Visibility == Visibility.Visible ||
+            ScenePanel.Visibility != Visibility.Visible || WorkspaceLanding.Visibility == Visibility.Visible ||
+            document is null || workspaceSession is null || BackToSceneButton.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("Scene list chevron did not keep the open scene.");
+        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render); UpdateLayout();
+        var peekBitmap = new RenderTargetBitmap((int)ActualWidth, (int)ActualHeight, 96, 96, PixelFormats.Pbgra32); peekBitmap.Render(this);
+        var peekEncoder = new PngBitmapEncoder(); peekEncoder.Frames.Add(BitmapFrame.Create(peekBitmap));
+        using (var stream = File.Create(Path.Combine(output, "scene-list-peek.png"))) peekEncoder.Save(stream);
+        BackToScene_Click(this, new());
+        if (EntityBrowser.Visibility != Visibility.Visible || WorkspaceBrowser.Visibility == Visibility.Visible ||
+            BackToWorkspaceButton.Visibility != Visibility.Visible || document is null)
+            throw new InvalidOperationException("Scene chevron did not return to the open scene.");
         WorkspaceExplorer_Click(this, new());
         if (!exploringWorkspace || document is not null) throw new InvalidOperationException("Workspace Explorer retained scene state.");
         await OpenWorkspaceScene(workspaceScenes[0]);
@@ -89,6 +102,6 @@ public partial class MainWindow
                 throw new InvalidOperationException("Deleted scene did not save and reopen correctly.");
             File.WriteAllText(Path.Combine(output, "delete.txt"), "PASS: Delete button removes existing rendered model, linked unit and owned collision with DS1 window open; undo restores geometry and exact DS1; redo, Save Scene and reopen retain deletion and valid links.");
         }
-        File.WriteAllText(Path.Combine(output, "smoke.txt"), "PASS: workspace discovery, browser, exact pair load, independent assets, Save Scene button writes JSON/DS1/links with backups, explorer return, paired reopen and persisted workspace settings. All writes confined to artifact mod copy.");
+        File.WriteAllText(Path.Combine(output, "smoke.txt"), "PASS: workspace discovery, browser, exact pair load, independent assets, Save Scene button writes JSON/DS1/links with backups, chevron peek at the list without closing the scene, explorer return, paired reopen and persisted workspace settings. All writes confined to artifact mod copy.");
     }
 }

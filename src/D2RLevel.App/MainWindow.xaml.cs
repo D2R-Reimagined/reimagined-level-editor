@@ -657,6 +657,7 @@ public partial class MainWindow : Window
         WorkspaceExplorerButton.IsEnabled = !busy && workspaceFolder is not null;
         SaveSceneButton.IsEnabled = !busy && workspaceSession is not null && placementLinks?.Warning is null && pairedScene?.Collision is not null;
         WorkspaceScenes.IsEnabled = !busy;
+        UpdateWorkspaceChevrons();
         SaveCopyButton.Visibility = workspaceSession is not null || exploringWorkspace ? Visibility.Collapsed : Visibility.Visible;
         SavePairButton.Content = workspaceSession is not null ? L.T("Save Scene") : L.T("Save linked pair…");
         DeleteModelButton.IsEnabled = !busy && SelectedEntities.Length == 1 && Selected is { HasParent: false, IsTerrain: false, PreviewModel: not null };

@@ -11,6 +11,11 @@ internal static class RenderingChecks
     {
         void Check(bool condition, string name) { if (!condition) throw new InvalidOperationException("Batch regression: " + name); }
         var doc = PresetDocument.ModelPreview("data/hd/probe.model"); var entity = doc.Entities[0];
+        // An unresolved DS1 unit has to stay legible while a whole scene is in view, so its marker
+        // is measured against the grid rather than the fixed size a missing model proxy uses.
+        var markerBounds = SceneViewport.UnitMarker(10).Bounds;
+        Check(markerBounds.SizeX >= 8 && markerBounds.SizeZ >= 8 && markerBounds.SizeY >= 16 && markerBounds.Y == 0,
+            "unresolved unit marker spans its grid tile and stands on the ground");
         var shape = SceneViewport.Placeholder();
         var batch = new SceneBatch(shape.Children.Cast<GeometryModel3D>().Select(p => new SceneBatch.Part(entity, p)).ToArray());
         var view = new SceneViewport(); view.Measure(new Size(400, 400)); view.Arrange(new Rect(0, 0, 400, 400));

@@ -500,16 +500,30 @@ try
     }
     var excel = Path.Combine(resolver.DataRoot, "global", "excel"); Directory.CreateDirectory(excel);
     var characters = Path.Combine(hd, "character"); Directory.CreateDirectory(Path.Combine(characters, "npc"));
-    File.WriteAllText(Path.Combine(excel, "monpreset.txt"), "Act\tPlace\n1\tgheed\n1\takara\n2\tother\n1\tspawn_group\n");
-    File.WriteAllText(Path.Combine(excel, "monstats.txt"), "Id\nakaRA\ngheed\nother\n");
-    File.WriteAllText(Path.Combine(characters, "monsters.json"), "{\"akara\":\"akara\",\"other\":\"akara\"}");
+    Directory.CreateDirectory(Path.Combine(characters, "enemy"));
+    File.WriteAllText(Path.Combine(excel, "monpreset.txt"), "Act\tPlace\n1\tgheed\n1\takara\n2\tother\n1\tspawn_group\n1\tlabfiretrap1\n1\tnodefinition\n1\tBloodwitch the Wild\n1\tplace_champion\n");
+    File.WriteAllText(Path.Combine(excel, "monstats.txt"), "Id\nakaRA\ngheed\nother\nlabfiretrap1\nnodefinition\npantherwoman1\n");
+    File.WriteAllText(Path.Combine(excel, "superuniques.txt"), "Superunique\tName\tClass\nBloodwitch the Wild\tBloodwitch the Wild\tpantherwoman1\n");
+    File.WriteAllText(Path.Combine(characters, "monsters.json"), "{\"akara\":\"akara\",\"other\":\"akara\",\"labfiretrap1\":\"gargoyletrap\",\"pantherwoman1\":\"pantherwoman1\"}");
     File.WriteAllText(Path.Combine(characters, "npc", "akara.json"), "{}");
+    File.WriteAllText(Path.Combine(characters, "enemy", "gargoyletrap.json"), "{}");
+    File.WriteAllText(Path.Combine(characters, "enemy", "pantherwoman1.json"), "{}");
     var npcCatalog = new NpcCatalog(resolver, null);
     var npcUnit = new Ds1Unit(0, 1, 1, 3, 4, 0);
     Check(npcCatalog.Lookup(1, npcUnit).Name == "akara" && npcCatalog.Lookup(1, npcUnit).DefinitionPath is not null, "NPC ID resolves by zero-based act preset, not MonStats row");
     Check(npcCatalog.Lookup(2, npcUnit with { Id = 0 }).Name == "other", "NPC preset lookup is act-specific");
     Check(npcCatalog.Lookup(1, npcUnit with { Id = 2 }).Warning is not null, "Unresolved spawn group retains marker");
     Check(npcCatalog.Lookup(1, npcUnit with { Id = 99 }).Warning is not null, "Unknown NPC ID retains marker");
+    var trap = npcCatalog.Lookup(1, npcUnit with { Id = 3 });
+    Check(trap.Name == "labfiretrap1" && trap.DefinitionPath == "data/hd/character/enemy/gargoyletrap.json" && trap.Warning is null,
+        "Trap and monster appearances resolve from the enemy folder, not only town NPCs");
+    Check(npcCatalog.Lookup(1, npcUnit with { Id = 4 }).DefinitionPath is null, "Appearance with no definition in either folder retains marker");
+    var superunique = npcCatalog.Lookup(1, npcUnit with { Id = 5 });
+    Check(superunique.Name == "Bloodwitch the Wild" && superunique.DefinitionPath == "data/hd/character/enemy/pantherwoman1.json" && superunique.Warning is null,
+        "Superunique wears its SuperUniques Class appearance while keeping its own name");
+    var spawnCode = npcCatalog.Lookup(1, npcUnit with { Id = 6 });
+    Check(spawnCode.Name == "place_champion" && spawnCode.DefinitionPath is null && spawnCode.Warning!.StartsWith("Spawn placement code"),
+        "Run-time spawn placement code is reported as such, not as a missing definition");
     var overrideRoot = Path.Combine(folder, "npc-mod"); Directory.CreateDirectory(Path.Combine(overrideRoot, "hd"));
     Directory.CreateDirectory(Path.Combine(overrideRoot, "global", "excel"));
     File.WriteAllText(Path.Combine(overrideRoot, "global", "excel", "monpreset.txt"), "Act\tPlace\n1\takara\n");

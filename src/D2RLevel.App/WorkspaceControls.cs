@@ -12,6 +12,9 @@ public partial class MainWindow
     private WorkspaceScene[] workspaceScenes = [];
     private WorkspaceSceneSession? workspaceSession, openingWorkspaceSession;
     private bool exploringWorkspace;
+    // Peeking at the scene list from an open scene: the list replaces the entity browser on the
+    // left while the scene itself stays loaded in the viewport.
+    private bool browsingWorkspace;
     private async void LoadWorkspace_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog { Title = L.T("Select mod data directory (containing hd/env/preset and global/tiles)"), InitialDirectory = workspaceFolder ?? "" };
@@ -50,7 +53,7 @@ public partial class MainWindow
         npcItems.Clear(); npcPreview = new(new(), []);
         addedModels.Clear(); removedModels.Clear(); Scene.SetScene(new([], [], 0));
         Filter(); Ds1Preview.SetScene(null, pairedStatus); PopulateInspector();
-        exploringWorkspace = true; SetWorkspaceView();
+        exploringWorkspace = true; browsingWorkspace = false; SetWorkspaceView();
         RecentWorkspaces.ItemsSource = settings.RecentWorkspaces ?? []; RecentWorkspaces.SelectedItem = workspaceFolder;
         WorkspaceSearch.Text = ""; FilterWorkspace();
         PathLabel.Text = L.T("Workspace: {0}", workspaceFolder) + "  |  " + L.T("Assets: {0}", resolver?.DataRoot ?? L.T("not selected"));
@@ -60,11 +63,34 @@ public partial class MainWindow
     }
     private void SetWorkspaceView()
     {
-        WorkspaceBrowser.Visibility = exploringWorkspace ? Visibility.Visible : Visibility.Collapsed;
-        EntityBrowser.Visibility = exploringWorkspace ? Visibility.Collapsed : Visibility.Visible;
+        bool listOnLeft = exploringWorkspace || browsingWorkspace;
+        WorkspaceBrowser.Visibility = listOnLeft ? Visibility.Visible : Visibility.Collapsed;
+        EntityBrowser.Visibility = listOnLeft ? Visibility.Collapsed : Visibility.Visible;
+        // Only leaving the scene entirely gives the viewport over to the landing page; peeking at
+        // the list keeps the scene, its inspector and its viewport exactly as they were.
         InspectorPanel.Visibility = exploringWorkspace ? Visibility.Collapsed : Visibility.Visible;
         ScenePanel.Visibility = exploringWorkspace ? Visibility.Collapsed : Visibility.Visible;
         WorkspaceLanding.Visibility = exploringWorkspace ? Visibility.Visible : Visibility.Collapsed;
+        UpdateWorkspaceChevrons();
+    }
+    private void UpdateWorkspaceChevrons()
+    {
+        BackToSceneButton.Visibility = browsingWorkspace ? Visibility.Visible : Visibility.Collapsed;
+        BackToWorkspaceButton.Visibility = !exploringWorkspace && !browsingWorkspace && workspaceFolder is not null && document is not null
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+    /// <summary>Shows the workspace scene list beside the open scene, without closing it.</summary>
+    private void BackToWorkspace_Click(object sender, RoutedEventArgs e)
+    {
+        if (workspaceFolder is null || loading is not null || exploringWorkspace || browsingWorkspace) return;
+        browsingWorkspace = true; SetWorkspaceView();
+        RecentWorkspaces.ItemsSource = settings.RecentWorkspaces ?? []; RecentWorkspaces.SelectedItem = workspaceFolder;
+        FilterWorkspace(); WorkspaceSearch.Focus();
+    }
+    private void BackToScene_Click(object sender, RoutedEventArgs e)
+    {
+        if (!browsingWorkspace) return;
+        browsingWorkspace = false; SetWorkspaceView();
     }
     private void FilterWorkspace()
     {
@@ -80,8 +106,19 @@ public partial class MainWindow
     }
     private async void WorkspaceScenes_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!exploringWorkspace || loading is not null || WorkspaceScenes.SelectedItem is not WorkspaceScene scene) return;
-        try { await OpenWorkspaceScene(scene); } catch (Exception ex) { Error(ex); }
+        if ((!exploringWorkspace && !browsingWorkspace) || loading is not null || WorkspaceScenes.SelectedItem is not WorkspaceScene scene) return;
+        try
+        {
+            // A scene is still open when the list is only being peeked at, so opening another one
+            // replaces it and has to ask about unsaved edits first.
+            if (browsingWorkspace)
+            {
+                if (!CanReplace()) return;
+                browsingWorkspace = false; SetWorkspaceView();
+            }
+            await OpenWorkspaceScene(scene);
+        }
+        catch (Exception ex) { Error(ex); }
         finally { WorkspaceScenes.SelectedItem = null; }
     }
     private async Task OpenWorkspaceScene(WorkspaceScene scene)
@@ -91,7 +128,7 @@ public partial class MainWindow
         try
         {
             await LoadPreset(scene.JsonPath);
-            if (workspaceSession == openingWorkspaceSession) { exploringWorkspace = false; SetWorkspaceView(); }
+            if (workspaceSession == openingWorkspaceSession) { exploringWorkspace = false; browsingWorkspace = false; SetWorkspaceView(); }
         }
         finally { openingWorkspaceSession = null; RefreshState(); }
     }
