@@ -33,7 +33,8 @@ public partial class MainWindow
             if (pair is null) return (null, "No matching DS1 detected. Use Open DS1… to choose and remember the matching file.");
             var overrideRoot = pair.Source == "Base asset fallback" ? PresetPairing.Split(preset.SourcePath, "hd/env/preset")?.DataRoot : null;
             var scene = await Task.Run(() => LegacyFloorScene.Load(pair.Ds1Path, assets, token, overrideRoot), token);
-            return (scene, $"DS1: {Path.GetFileName(pair.Ds1Path)} · {pair.Source}");
+            string origin = scene.TilesetSource == TilesetSource.LevelTables ? "" : " · " + LegacyFloorWindow.TilesetOrigin(scene.TilesetSource);
+            return (scene, $"DS1: {Path.GetFileName(pair.Ds1Path)} · {pair.Source}{origin}");
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) { return (null, "DS1 could not load: " + ex.Message + " Use Open DS1… to select a file."); }

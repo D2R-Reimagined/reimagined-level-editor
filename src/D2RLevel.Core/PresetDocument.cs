@@ -79,7 +79,7 @@ public sealed class PresetEntity
     public override string ToString() => Name;
 }
 
-public sealed class PresetDocument
+public sealed partial class PresetDocument
 {
     private readonly JsonObject root;
     private readonly byte[] originalBytes;

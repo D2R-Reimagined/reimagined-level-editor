@@ -1,4 +1,4 @@
-﻿{
+{
   "$language": "简体中文",
   "$note": "初稿由机器翻译生成，欢迎母语者修正，详见 README.md。",
   "#{0} · {1} ID {2} · ({3}, {4})": "#{0} · {1} ID {2} · ({3}, {4})",
@@ -381,5 +381,14 @@
   "{0}: {1} assets. Click any member to select the group. Group metadata is saved beside the preset.": "{0}：{1} 个资源。单击任意成员可选择该组。组元数据保存在预设旁。",
   "{0}:{1} · {2} variant(s)": "{0}:{1} · {2} 个变体",
   "Back to the open scene.": "返回已打开的场景。",
-  "Back to the workspace scene list. This scene stays open.": "返回工作区场景列表。当前场景保持打开。"
+  "Back to the workspace scene list. This scene stays open.": "返回工作区场景列表。当前场景保持打开。",
+  "tileset from LvlPrest/LvlTypes": "来自 LvlPrest/LvlTypes 的图块集",
+  "tileset from the DS1 header · this room is shared between generated levels": "来自 DS1 文件头的图块集 - 此房间由生成的多个关卡共用",
+  "tileset from the level project": "来自关卡项目的图块集",
+  "Alt-drag: repeat at model-sized intervals. Release to place; Esc cancels.": "",
+  "Created {0} HD copies. Ctrl+Z undoes the row. DS1 units and collision links are not copied.": "",
+  "{0} copies (drag limit). Release to place; Esc cancels.": "",
+  "{0} copies. Release to place; Esc cancels.": "",
+  "Gizmo arrows: move on one axis · Alt + arrow drag: fill with model-sized copies": "",
+  "Drag empty space: box select · Shift-drag: add · Ctrl-drag: toggle · Click empty space: deselect": ""
 }

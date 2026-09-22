@@ -126,6 +126,8 @@
             <TextBlock Text="{l:T 'Right drag: look · Wheel: move forward/back · Middle drag: pan'}" Foreground="#A9BED2" Margin="0,4,0,0"/>
             <TextBlock Text="{l:T 'Alt + right drag: orbit selection · Shift: faster travel · Ctrl: finer travel'}" Foreground="#A9BED2"/>
             <TextBlock Text="{l:T 'Ctrl-click: select multiple · Left drag: move selection · Esc: cancel drag · F: frame selected · Home: frame all'}" Foreground="#A9BED2"/>
+            <TextBlock Text="{l:T 'Gizmo arrows: move on one axis · Alt + arrow drag: fill with model-sized copies'}" Foreground="#A9BED2"/>
+            <TextBlock Text="{l:T 'Drag empty space: box select · Shift-drag: add · Ctrl-drag: toggle · Click empty space: deselect'}" Foreground="#A9BED2"/>
           </StackPanel>
         </Border>
         <Border Grid.Row="1" Background="#18212B" Padding="10">

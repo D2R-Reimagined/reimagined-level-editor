@@ -20,6 +20,14 @@ public sealed partial class LegacyFloorWindow : Window
     private ScrollViewer? collisionScroll;
     public LegacyFloorScene FloorScene => scene;
 
+    /// <summary>Says how much authority this scene's tileset carries.</summary>
+    internal static string TilesetOrigin(TilesetSource source) => source switch
+    {
+        TilesetSource.Project => L.T("tileset from the level project"),
+        TilesetSource.LevelTables => L.T("tileset from LvlPrest/LvlTypes"),
+        _ => L.T("tileset from the DS1 header · this room is shared between generated levels"),
+    };
+
     public LegacyFloorWindow(LegacyFloorScene scene, ModelFootprint? footprint = null)
     {
         this.scene = scene;
@@ -28,7 +36,7 @@ public sealed partial class LegacyFloorWindow : Window
         Background = new SolidColorBrush(Color.FromRgb(20, 27, 35));
         scale = Math.Min(1, 3000d / ((scene.Map.Width + scene.Map.Height) * 80));
         var root = new DockPanel { Margin = new Thickness(12) }; Content = root;
-        var heading = new TextBlock { Text = L.T("DS1 v{0} · {1} × {2} tiles · Act {3} · Dt1Mask {4} · {5} DT1 files · {6} unresolved floor cells", scene.Map.Version, scene.Map.Width, scene.Map.Height, scene.Map.Act, scene.Mask, scene.Dt1Paths.Length, scene.MissingCells), Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
+        var heading = new TextBlock { Text = L.T("DS1 v{0} · {1} × {2} tiles · Act {3} · Dt1Mask {4} · {5} DT1 files · {6} unresolved floor cells", scene.Map.Version, scene.Map.Width, scene.Map.Height, scene.Map.Act, scene.Mask, scene.Dt1Paths.Length, scene.MissingCells) + " · " + TilesetOrigin(scene.TilesetSource), Margin = new Thickness(8), TextWrapping = TextWrapping.Wrap };
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
         var source = new TextBlock { Text = L.T("DS1: {0}", scene.Ds1Path), Margin = new Thickness(8, 0, 8, 4), TextWrapping = TextWrapping.Wrap };
         DockPanel.SetDock(source, Dock.Top); root.Children.Add(source);

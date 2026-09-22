@@ -20,6 +20,8 @@ public sealed partial class Ds1CollisionDocument
     public int Height { get; }
     public int Act { get; }
     public IReadOnlyList<Ds1CollisionLayer> Floors { get; }
+    /// <summary>DT1 references recorded in the DS1 header, exactly as stored.</summary>
+    public IReadOnlyList<string> TileFiles { get; }
     public IReadOnlyList<Ds1CollisionLayer> Walls { get; }
     public bool IsDirty => !bytes.AsSpan().SequenceEqual(saved);
     public bool CanUndo => History.CanUndo;
@@ -33,15 +35,22 @@ public sealed partial class Ds1CollisionDocument
         Version = reader.ReadInt32();
         if (Version is < 16 or > 18) throw new InvalidDataException("Collision editing supports DS1 versions 16–18.");
         Width = checked(reader.ReadInt32() + 1); Height = checked(reader.ReadInt32() + 1);
-        Act = checked(reader.ReadInt32() + 1); int tag = reader.ReadInt32();
-        if (Width is < 1 or > 512 || Height is < 1 or > 512 || Act is < 1 or > 5) throw new InvalidDataException("Invalid DS1 dimensions or act.");
+        // Expansion maps store act 5 past the five acts that have palettes and tables; the game
+        // clamps the same way. Act is derived, so the stored byte is never rewritten.
+        int storedAct = checked(reader.ReadInt32() + 1); Act = Math.Min(storedAct, 5); int tag = reader.ReadInt32();
+        if (Width is < 1 or > 512 || Height is < 1 or > 512 || storedAct is < 1 or > 6) throw new InvalidDataException("Invalid DS1 dimensions or act.");
         int files = reader.ReadInt32();
         if (files is < 0 or > 1024) throw new InvalidDataException("Invalid DS1 filename count.");
+        var tileFiles = new List<string>(files);
         for (int i = 0; i < files; i++)
         {
-            int length = 0;
+            int start = (int)reader.BaseStream.Position, length = 0;
             while (reader.ReadByte() != 0) if (++length > 4096) throw new InvalidDataException("Unterminated DS1 filename.");
+            // The authoring-time tileset, kept verbatim. It is the only tileset a DS1 that no
+            // LvlPrest row assigns to a level can name, and it is never written back.
+            tileFiles.Add(System.Text.Encoding.ASCII.GetString(bytes, start, length));
         }
+        TileFiles = tileFiles.AsReadOnly();
         int walls = reader.ReadInt32(), floors = reader.ReadInt32();
         if (walls is < 1 or > 4 || floors is < 1 or > 2) throw new InvalidDataException("Invalid DS1 layer counts.");
         int cells = checked(Width * Height), size = checked(cells * 4);

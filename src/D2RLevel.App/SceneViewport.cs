@@ -10,7 +10,7 @@ namespace D2RLevel.App;
 public sealed record SceneItem(PresetEntity Entity, Model3DGroup Geometry, bool IsPlaceholder, IReadOnlyList<string>? TexturePaths = null);
 public sealed record LoadedScene(IReadOnlyList<SceneItem> Items, IReadOnlyList<string> Diagnostics, int LoadedModels, IReadOnlyList<SceneBatch>? Batches = null, int MissingDecoderModels = 0);
 
-public sealed class SceneViewport : Grid
+public sealed partial class SceneViewport : Grid
 {
     // Input belongs to the surrounding Grid. Avoid WPF's automatic software ray
     // tests on pointer movement; explicit visual hit testing below still picks clicks.
@@ -63,7 +63,12 @@ public sealed class SceneViewport : Grid
     private readonly TextBlock modeLabel = new() { Margin = new Thickness(12), VerticalAlignment = VerticalAlignment.Bottom, Foreground = Brushes.LightBlue, IsHitTestVisible = false };
     public event Action<PresetEntity>? EntitySelected;
     public event Action<PresetEntity, EntityTransform>? DragCommitted;
-    public bool AllowModelDragging { get; set; }
+    private bool allowModelDragging;
+    public bool AllowModelDragging
+    {
+        get => allowModelDragging;
+        set { CancelDrag(); allowModelDragging = value; UpdateGizmo(); }
+    }
     private PresetEntity? dragEntity;
     private EntityTransform dragStart, dragValue;
     private Point dragPointer;
@@ -118,22 +123,50 @@ public sealed class SceneViewport : Grid
         return camera.Position + ray * t;
     }
 
-    internal bool BeginDrag(PresetEntity entity, Point point)
+    internal bool BeginDrag(PresetEntity entity, Point point, MovementAxis? axis = null, bool duplicate = false)
     {
         CancelDrag();
-        if (!AllowModelDragging || !entity.CanTransform || entity.HasParent || IsLocked(entity) || !visuals.ContainsKey(entity.Index) ||
-            GroundPoint(point, entity.Transform.Position.Y) is not { } anchor) return false;
+        if (!CanDrag(entity) || (axis == MovementAxis.Y && entity.GameplayUnitIndex is not null)) return false;
+        Point3D anchor;
+        if (axis is { } direction)
+        {
+            var bounds = visuals[entity.Index].Transform.TransformBounds(visuals[entity.Index].Content.Bounds);
+            if (bounds.IsEmpty) return false;
+            dragAxisOrigin = new(bounds.X + bounds.SizeX / 2, bounds.Y + bounds.SizeY / 2, bounds.Z + bounds.SizeZ / 2);
+            var forward = camera.LookDirection; forward.Normalize();
+            var vector = AxisVector(direction);
+            dragPlaneNormal = forward - vector * Vector3D.DotProduct(forward, vector);
+            // An axis viewed end-on has no usable on-screen drag direction.
+            if (dragPlaneNormal.LengthSquared < 0.01) return false;
+            dragPlaneNormal.Normalize();
+            if (AxisPlanePoint(point) is not { } planePoint) return false;
+            anchor = planePoint;
+        }
+        else
+        {
+            if (GroundPoint(point, entity.Transform.Position.Y) is not { } ground) return false;
+            anchor = ground;
+        }
         var members = selectedMembers.Contains(entity) ? selectedMembers : [entity];
         if (members.Length > 1 && members.Any(e => !GroupMovement.CanGroup(e) || IsLocked(e) || !visuals.ContainsKey(e.Index))) return false;
+        if (duplicate && (axis is not { } copyAxis || !BeginDuplication(members, copyAxis))) return false;
         dragMembers = members.ToDictionary(e => e, e => e.Transform);
+        dragAxis = axis;
         dragEntity = entity; dragStart = dragValue = entity.Transform; dragAnchor = anchor; dragPointer = point;
+        UpdateGizmo();
         return true;
     }
     internal void ContinueDrag(Point point)
     {
-        if (dragEntity is not { } entity || GroundPoint(point, dragStart.Position.Y) is not { } ground) return;
+        if (dragEntity is not { } entity || (dragAxis is null ? GroundPoint(point, dragStart.Position.Y) : AxisPlanePoint(point)) is not { } ground) return;
         if (!dragging && Math.Abs(point.X - dragPointer.X) < SystemParameters.MinimumHorizontalDragDistance &&
             Math.Abs(point.Y - dragPointer.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        if (duplicating)
+        {
+            dragging = true; Cursor = Cursors.Cross;
+            ContinueDuplication(ground - dragAnchor);
+            return;
+        }
         if (!dragging)
         {
             dragging = true;
@@ -148,18 +181,29 @@ public sealed class SceneViewport : Grid
             Cursor = Cursors.SizeAll;
         }
         var delta = ground - dragAnchor;
-        dragValue = dragStart with { Position = new(dragStart.Position.X + delta.X, dragStart.Position.Y, dragStart.Position.Z + delta.Z) };
+        if (dragAxis is { } axis)
+        {
+            var vector = AxisVector(axis);
+            delta = vector * Vector3D.DotProduct(delta, vector);
+        }
+        else delta.Y = 0;
+        dragValue = dragStart with { Position = new(dragStart.Position.X + delta.X, dragStart.Position.Y + delta.Y, dragStart.Position.Z + delta.Z) };
         foreach (var (member, start) in dragMembers)
-            visuals[member.Index].Transform = Transform(start with { Position = new(start.Position.X + delta.X, start.Position.Y, start.Position.Z + delta.Z) });
+            visuals[member.Index].Transform = Transform(start with { Position = new(start.Position.X + delta.X, start.Position.Y + delta.Y, start.Position.Z + delta.Z) });
         Select(entity);
     }
-    public void CancelDrag() => EndDrag(false);
+    public void CancelDrag() { EndMarquee(false); EndDrag(false); }
     internal void EndDrag(bool commit)
     {
         var entity = dragEntity; var value = dragValue; bool changed = dragging && value != dragStart;
+        bool copyDrag = duplicating;
+        int copyCount = duplicateCount;
+        var copyStep = duplicateStep;
+        ClearDuplication();
         bool restoreBatches = detached;
         var members = dragMembers.Keys.ToArray(); dragMembers.Clear();
-        dragEntity = null; dragging = detached = false; Cursor = null;
+        dragEntity = null; dragAxis = null; dragging = detached = false; Cursor = null;
+        UpdateGizmo();
         if (IsMouseCaptured) ReleaseMouseCapture();
         if (entity is null) return;
         if (restoreBatches) foreach (var member in members)
@@ -168,7 +212,11 @@ public sealed class SceneViewport : Grid
                 viewport.Children.Remove(visuals[member.Index]);
                 foreach (var batch in batches) batch.SetIncluded(member, true);
             }
-        try { if (commit && changed) DragCommitted?.Invoke(entity, value); }
+        try
+        {
+            if (commit && copyDrag && copyCount > 0) DuplicationCommitted?.Invoke(members, copyStep, copyCount);
+            else if (commit && !copyDrag && changed) DragCommitted?.Invoke(entity, value);
+        }
         finally
         {
             foreach (var member in members)
@@ -176,7 +224,7 @@ public sealed class SceneViewport : Grid
                 if (visuals.TryGetValue(member.Index, out var visual)) visual.Transform = Transform(member.Transform);
             }
             if (restoreBatches) RebuildMemberBatches(members);
-            Select(entity); UpdateVisibility();
+            Select(selected); UpdateVisibility();
         }
     }
     private void RebuildMemberBatches(IEnumerable<PresetEntity> members)
@@ -236,18 +284,33 @@ public sealed class SceneViewport : Grid
         ClipToBounds = true;
         Focusable = true;
         Children.Add(viewport);
+        Children.Add(gizmo);
+        Children.Add(marquee);
         Children.Add(modeLabel);
+        Children.Add(duplicateLabel);
         viewport.Camera = camera;
         MouseDown += Down;
         MouseMove += Move;
-        MouseUp += (_, e) => { if (e.ChangedButton == MouseButton.Left && dragEntity is not null) { EndDrag(true); e.Handled = true; } else if (e.ChangedButton is MouseButton.Right or MouseButton.Middle) ReleaseMouseCapture(); };
+        MouseUp += (_, e) =>
+        {
+            if (e.ChangedButton == MouseButton.Left && marqueePending) { ContinueMarquee(e.GetPosition(this)); EndMarquee(true); e.Handled = true; }
+            else if (e.ChangedButton == MouseButton.Left && dragEntity is not null) { EndDrag(true); e.Handled = true; }
+            else if (e.ChangedButton is MouseButton.Right or MouseButton.Middle) ReleaseMouseCapture();
+        };
         LostMouseCapture += (_, _) => { orbitGesture = false; CancelDrag(); };
         LostKeyboardFocus += (_, _) => { if (IsMouseCaptured) ReleaseMouseCapture(); };
         Unloaded += (_, _) => { if (IsMouseCaptured) ReleaseMouseCapture(); };
-        MouseWheel += (_, e) => { if (dragEntity is null) Dolly(e.Delta / 120d, TravelMultiplier()); e.Handled = true; };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { CancelDrag(); e.Handled = true; } if (e.Key == Key.F) { CancelDrag(); FrameSelected(); e.Handled = true; } if (e.Key == Key.Home) { CancelDrag(); FrameAll(); e.Handled = true; } };
+        MouseWheel += (_, e) => { if (dragEntity is null && !marqueePending) Dolly(e.Delta / 120d, TravelMultiplier()); e.Handled = true; };
+        KeyDown += (_, e) =>
+        {
+            // With Alt held, WPF reports Escape as a system key.
+            if (e.Key == Key.Escape || (e.Key == Key.System && e.SystemKey == Key.Escape)) { CancelDrag(); e.Handled = true; }
+            if (e.Key == Key.F) { CancelDrag(); FrameSelected(); e.Handled = true; }
+            if (e.Key == Key.Home) { CancelDrag(); FrameAll(); e.Handled = true; }
+        };
         UpdateCamera();
-        SizeChanged += (_, _) => UpdateVisibility();
+        SizeChanged += (_, _) => { EndMarquee(false); UpdateVisibility(); UpdateGizmo(); };
+        MouseLeave += (_, _) => { if (dragEntity is null) { gizmo.Highlight = null; gizmo.InvalidateVisual(); Cursor = null; } };
     }
 
     public void SetScene(LoadedScene scene)
@@ -315,6 +378,7 @@ public sealed class SceneViewport : Grid
     {
         selected = entity;
         selection.Content = null;
+        UpdateGizmo();
         if (entity?.IsTerrain == true && !terrainVisible) return;
         if (entity is null || !visuals.TryGetValue(entity.Index, out var visual)) return;
         var outlines = new Model3DGroup();
@@ -392,6 +456,7 @@ public sealed class SceneViewport : Grid
         var offset = new Vector3D(Math.Cos(pitch) * Math.Sin(yaw), Math.Sin(pitch), Math.Cos(pitch) * Math.Cos(yaw)) * distance;
         camera.Position = target + offset; camera.LookDirection = -offset; camera.UpDirection = new(0, 1, 0);
         UpdateVisibility();
+        UpdateGizmo();
     }
     private void UpdateVisibility()
     {
@@ -437,13 +502,8 @@ public sealed class SceneViewport : Grid
             CaptureMouse(); e.Handled = true; return;
         }
         if (e.ChangedButton != MouseButton.Left) return;
-        var entity = Pick(e.GetPosition(viewport));
-        if (entity is not null)
-        {
-            EntitySelected?.Invoke(entity);
-            if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0 && BeginDrag(entity, e.GetPosition(this))) CaptureMouse();
-            e.Handled = true;
-        }
+        if (BeginLeftInteraction(last, Keyboard.Modifiers)) CaptureMouse();
+        e.Handled = true;
     }
     public PresetEntity? Pick(Point point)
     {
@@ -470,12 +530,23 @@ public sealed class SceneViewport : Grid
     }
 
     /// <summary>Terrain cannot be picked or dragged while it is locked.</summary>
-    public bool TerrainLocked { get; set; } = true;
+    private bool terrainLocked = true;
+    public bool TerrainLocked
+    {
+        get => terrainLocked;
+        set { CancelDrag(); terrainLocked = value; UpdateGizmo(); }
+    }
     public bool IsLocked(PresetEntity entity) => TerrainLocked && entity.IsTerrain;
     private void Move(object sender, MouseEventArgs e)
     {
-        if (!IsMouseCaptured) return;
+        if (!IsMouseCaptured)
+        {
+            gizmo.Highlight = HitGizmo(e.GetPosition(this)); gizmo.InvalidateVisual();
+            Cursor = gizmo.Highlight is null ? null : Cursors.Hand;
+            return;
+        }
         var point = e.GetPosition(this); var delta = point - last; last = point;
+        if (marqueePending) { ContinueMarquee(point); e.Handled = true; return; }
         if (dragEntity is not null) { ContinueDrag(point); e.Handled = true; return; }
         if (e.RightButton == MouseButtonState.Pressed)
             Look(delta.X, delta.Y, orbitGesture);

@@ -24,6 +24,7 @@ public partial class MainWindow
     }
     private void LinkedHistoryChanged(object? subject)
     {
+        if (subject is ModelDuplication duplication) SyncDuplication(duplication);
         if (subject is PresetEntity[] members) RefreshGroupMove(members);
         if (document?.History.Shared != true) return;
         try

@@ -1,4 +1,4 @@
-﻿{
+{
   "$language": "Русский",
   "$note": "Первый черновик выполнен машинным переводом. Исправления от носителей языка приветствуются — см. README.md.",
   "#{0} · {1} ID {2} · ({3}, {4})": "#{0} · {1} ID {2} · ({3}, {4})",
@@ -381,5 +381,14 @@
   "{0}: {1} assets. Click any member to select the group. Group metadata is saved beside the preset.": "{0}: ассетов — {1}. Кликните по любому участнику, чтобы выбрать группу. Метаданные группы сохраняются рядом с пресетом.",
   "{0}:{1} · {2} variant(s)": "{0}:{1} · вариантов: {2}",
   "Back to the open scene.": "Вернуться к открытой сцене.",
-  "Back to the workspace scene list. This scene stays open.": "Вернуться к списку сцен рабочего пространства. Эта сцена останется открытой."
+  "Back to the workspace scene list. This scene stays open.": "Вернуться к списку сцен рабочего пространства. Эта сцена останется открытой.",
+  "tileset from LvlPrest/LvlTypes": "набор тайлов из LvlPrest/LvlTypes",
+  "tileset from the DS1 header · this room is shared between generated levels": "набор тайлов из заголовка DS1 - эта комната используется несколькими генерируемыми уровнями",
+  "tileset from the level project": "набор тайлов из проекта уровня",
+  "Alt-drag: repeat at model-sized intervals. Release to place; Esc cancels.": "",
+  "Created {0} HD copies. Ctrl+Z undoes the row. DS1 units and collision links are not copied.": "",
+  "{0} copies (drag limit). Release to place; Esc cancels.": "",
+  "{0} copies. Release to place; Esc cancels.": "",
+  "Gizmo arrows: move on one axis · Alt + arrow drag: fill with model-sized copies": "",
+  "Drag empty space: box select · Shift-drag: add · Ctrl-drag: toggle · Click empty space: deselect": ""
 }

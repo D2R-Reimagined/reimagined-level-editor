@@ -1,4 +1,4 @@
-﻿{
+{
   "$language": "한국어",
   "$note": "기계 번역 초안입니다. 한국어 원어민의 검토와 수정을 환영합니다. README.md를 참조하세요.",
   "GRID CALIBRATION": "격자 보정",
@@ -381,5 +381,14 @@
   "{0}: {1} assets. Click any member to select the group. Group metadata is saved beside the preset.": "{0}: 에셋 {1}개. 구성원을 클릭하여 그룹을 선택하세요. 그룹 정보는 프리셋 옆에 저장됩니다.",
   "{0}:{1} · {2} variant(s)": "{0}:{1} · 변형 {2}개",
   "Back to the open scene.": "열려 있는 장면으로 돌아갑니다.",
-  "Back to the workspace scene list. This scene stays open.": "작업 공간 장면 목록으로 돌아갑니다. 이 장면은 열린 상태로 유지됩니다."
+  "Back to the workspace scene list. This scene stays open.": "작업 공간 장면 목록으로 돌아갑니다. 이 장면은 열린 상태로 유지됩니다.",
+  "tileset from LvlPrest/LvlTypes": "LvlPrest/LvlTypes의 타일셋",
+  "tileset from the DS1 header · this room is shared between generated levels": "DS1 헤더의 타일셋 - 이 방은 생성되는 레벨들이 공유합니다",
+  "tileset from the level project": "레벨 프로젝트의 타일셋",
+  "Alt-drag: repeat at model-sized intervals. Release to place; Esc cancels.": "",
+  "Created {0} HD copies. Ctrl+Z undoes the row. DS1 units and collision links are not copied.": "",
+  "{0} copies (drag limit). Release to place; Esc cancels.": "",
+  "{0} copies. Release to place; Esc cancels.": "",
+  "Gizmo arrows: move on one axis · Alt + arrow drag: fill with model-sized copies": "",
+  "Drag empty space: box select · Shift-drag: add · Ctrl-drag: toggle · Click empty space: deselect": ""
 }

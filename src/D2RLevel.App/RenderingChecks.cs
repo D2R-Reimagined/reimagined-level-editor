@@ -5,7 +5,7 @@ using D2RLevel.Core;
 
 namespace D2RLevel.App;
 
-internal static class RenderingChecks
+internal static partial class RenderingChecks
 {
     public static void Run()
     {
@@ -57,6 +57,9 @@ internal static class RenderingChecks
         view.SetScene(new([], [], 0)); Check(view.Pick(new Point(200, 200)) is null, "scene replacement clears batch picking");
         CameraChecks();
         PlacementChecks();
+        GizmoChecks();
+        DuplicationRenderingChecks();
+        BoxSelectionChecks();
     }
 
     private static void PlacementChecks()

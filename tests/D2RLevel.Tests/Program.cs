@@ -296,6 +296,7 @@ try
     PathChecks.Run(folder, Check, Throws);
     CalibrationChecks.Run(folder, Check, Throws);
     AuthoringChecks.Run(folder, Check, Throws);
+    DuplicationChecks.Run(folder, Check, Throws);
     LocalizationChecks.Run(folder, Check, Throws);
     // The real template must match the real sources, so a wording change cannot land without updating it.
     if (TranslationsAudit.FindRepositoryRoot(Directory.GetCurrentDirectory(), AppContext.BaseDirectory) is { } repoRoot)
@@ -460,6 +461,11 @@ try
     }
     var floors = Ds1Floors.Load(ds1);
     Check(floors.Width == 2 && floors.Height == 1 && floors.Layers.Length == 2 && floors.Act == 1, "DS1 stored dimensions, act and floor counts");
+    var expansion = File.ReadAllBytes(ds1); BitConverter.GetBytes(5).CopyTo(expansion, 12); // Stored act 5 — expansion.
+    var expansionPath = Path.Combine(folder, "expansion.ds1"); File.WriteAllBytes(expansionPath, expansion);
+    Check(Ds1Floors.Load(expansionPath).Act == 5, "Expansion DS1 act clamps to the last act with a palette");
+    BitConverter.GetBytes(6).CopyTo(expansion, 12); File.WriteAllBytes(expansionPath, expansion);
+    Throws(() => Ds1Floors.Load(expansionPath), "reject a DS1 act beyond expansion");
     Check(floors.Layers[0][0].Main == 33 && floors.Layers[0][0].Sub == 10 && floors.Layers[1][1].Sub == 11, "DS1 skips wall/orientation pairs and reads both floors");
     Check(new FloorCell(0x02100A00).IsEmpty, "DS1 empty flag is low byte, not whole DWORD");
     File.WriteAllBytes(ds1, File.ReadAllBytes(ds1)[..^1]);
@@ -524,6 +530,31 @@ try
     var spawnCode = npcCatalog.Lookup(1, npcUnit with { Id = 6 });
     Check(spawnCode.Name == "place_champion" && spawnCode.DefinitionPath is null && spawnCode.Warning!.StartsWith("Spawn placement code"),
         "Run-time spawn placement code is reported as such, not as a missing definition");
+    // A room the level generator assembles carries LevelId 0 and never reaches LvlTypes, so its
+    // tileset has to come from the DS1's own header.
+    var tileFolder = Path.Combine(resolver.DataRoot, "global", "tiles"); Directory.CreateDirectory(tileFolder);
+    var roomPath = Path.Combine(tileFolder, "room.ds1");
+    using (var w = new BinaryWriter(File.Create(roomPath)))
+    {
+        foreach (var number in new[] { 18, 0, 0, 0, 0, 2 }) w.Write(number); // v18, 1x1, act 1, no tag, two tile files
+        foreach (var name in new[] { @"\D2\Data\GLOBAL\TILES\ACT2\Maggot\Den.tg1", @"\d2\data\global\tiles\act2\maggot\floor.tg1" })
+        { w.Write(System.Text.Encoding.ASCII.GetBytes(name)); w.Write((byte)0); }
+        w.Write(1); w.Write(1); w.Write(new byte[16]); w.Write(0); // one wall and one floor layer, no units
+    }
+    var room = Ds1CollisionDocument.Load(roomPath);
+    Check(room.TileFiles.Count == 2 && room.TileFiles[0] == @"\D2\Data\GLOBAL\TILES\ACT2\Maggot\Den.tg1" &&
+        room.Serialize().SequenceEqual(File.ReadAllBytes(roomPath)), "DS1 header tileset is read verbatim and left in place");
+    var expansionRoom = File.ReadAllBytes(roomPath); BitConverter.GetBytes(5).CopyTo(expansionRoom, 12);
+    var expansionRoomPath = Path.Combine(tileFolder, "expansion-room.ds1"); File.WriteAllBytes(expansionRoomPath, expansionRoom);
+    var loadedExpansion = Ds1CollisionDocument.Load(expansionRoomPath);
+    Check(loadedExpansion.Act == 5 && loadedExpansion.Serialize().SequenceEqual(expansionRoom),
+        "Expansion collision document clamps its act without rewriting the stored byte");
+    File.WriteAllText(Path.Combine(excel, "lvlprest.txt"), "Name\tLevelId\tDt1Mask\tFile1\nShared room\t0\t3\tElsewhere/Elsewhere.ds1\n");
+    string tilesetError = "";
+    try { LegacyFloorScene.Load(roomPath, resolver, CancellationToken.None); }
+    catch (Exception ex) { tilesetError = ex.Message; }
+    Check(tilesetError.Contains("assigned to no level") && !tilesetError.Contains("explicit level context"),
+        "Unassigned DS1 reports its own missing tileset instead of refusing on level context");
     var overrideRoot = Path.Combine(folder, "npc-mod"); Directory.CreateDirectory(Path.Combine(overrideRoot, "hd"));
     Directory.CreateDirectory(Path.Combine(overrideRoot, "global", "excel"));
     File.WriteAllText(Path.Combine(overrideRoot, "global", "excel", "monpreset.txt"), "Act\tPlace\n1\takara\n");

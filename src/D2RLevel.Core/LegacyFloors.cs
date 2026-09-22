@@ -19,7 +19,8 @@ public sealed record Ds1Floors(int Version, int Width, int Height, int Act, Floo
         int width = checked(reader.ReadInt32() + 1), height = checked(reader.ReadInt32() + 1);
         if (width is < 1 or > 512 || height is < 1 or > 512) throw new InvalidDataException("Invalid DS1 dimensions.");
         int act = checked(reader.ReadInt32() + 1);
-        if (act is < 1 or > 5) throw new InvalidDataException("Invalid DS1 act.");
+        if (act is < 1 or > 6) throw new InvalidDataException("Invalid DS1 act.");
+        act = Math.Min(act, 5); // Expansion maps store one act past the five that have palettes.
         reader.ReadInt32(); // Tag type; after floors, so not needed by this read-only view.
         int files = reader.ReadInt32();
         if (files is < 0 or > 1024) throw new InvalidDataException("Invalid DS1 filename count.");
@@ -119,8 +120,19 @@ public static class Dt1Reader
     }
 }
 
+/// <summary>Where a scene's DT1 tileset came from, in descending order of authority.</summary>
+public enum TilesetSource
+{
+    /// <summary>A level project's stored tileset.</summary>
+    Project,
+    /// <summary>LvlPrest → Levels → LvlTypes, the set the game itself would load.</summary>
+    LevelTables,
+    /// <summary>The DS1's own header, for a room no LvlPrest row assigns to a level.</summary>
+    Ds1Header,
+}
+
 public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Main, int Sub), Dt1Floor[]> Tiles,
-    byte[] Palette, string Ds1Path, string[] Dt1Paths, uint Mask)
+    byte[] Palette, string Ds1Path, string[] Dt1Paths, uint Mask, TilesetSource TilesetSource = TilesetSource.LevelTables)
 {
     public LegacyCollision? Collision { get; init; }
     public FloorCell FloorAt(int layer, int x, int y) => Collision is { } c
@@ -142,30 +154,43 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
             }
             return fallback;
         }
+        var collision = Ds1CollisionDocument.Load(ds1Path);
         string[] paths;
         uint mask;
+        TilesetSource source;
         if (context is not null)
         {
             context.Validate();
             mask = context.Mask;
             paths = context.Files.Select(Resolve).ToArray();
+            source = TilesetSource.Project;
+        }
+        else if (LevelTablePreset(ds1Path, resolver, Normalize, Resolve) is { } preset)
+        {
+            var level = Table(Resolve("data/global/excel/levels.txt")).Single(r => r.GetValueOrDefault("Id") == preset["LevelId"]);
+            var type = Table(Resolve("data/global/excel/lvltypes.txt")).Single(r => r.GetValueOrDefault("Id") == level["LevelType"]);
+            mask = uint.Parse(preset["Dt1Mask"], System.Globalization.CultureInfo.InvariantCulture);
+            paths = Enumerable.Range(0, 32).Where(i => (mask & (1u << i)) != 0)
+                .Select(i => type[$"File {i + 1}"]).Where(p => p.Length > 0 && p != "0")
+                .Select(p => Resolve("data/global/tiles/" + p.Replace('\\', '/'))).ToArray();
+            source = TilesetSource.LevelTables;
         }
         else
         {
-        var relative = Normalize(PresetPairing.RelativeDs1(ds1Path, resolver));
-        var presets = Table(Resolve("data/global/excel/lvlprest.txt"));
-        var matches = presets.Where(r => Enumerable.Range(1, 6).Any(i => r.TryGetValue($"File{i}", out var f) && Normalize(f) == relative)).ToArray();
-        if (matches.Length != 1) throw new InvalidDataException("DS1 must uniquely match a LvlPrest File1–6 entry inside the extraction's global/tiles folder.");
-        var preset = matches[0];
-        string levelId = preset["LevelId"];
-        if (levelId == "0") throw new InvalidDataException("This preset needs explicit level context; only fixed LevelId presets are supported yet.");
-        var level = Table(Resolve("data/global/excel/levels.txt")).Single(r => r.GetValueOrDefault("Id") == levelId);
-        var type = Table(Resolve("data/global/excel/lvltypes.txt")).Single(r => r.GetValueOrDefault("Id") == level["LevelType"]);
-        mask = uint.Parse(preset["Dt1Mask"], System.Globalization.CultureInfo.InvariantCulture);
-        paths = Enumerable.Range(0, 32).Where(i => (mask & (1u << i)) != 0)
-            .Select(i => type[$"File {i + 1}"]).Where(p => p.Length > 0 && p != "0")
-            .Select(p => Resolve("data/global/tiles/" + p.Replace('\\', '/'))).ToArray();
+            // Rooms the level generator assembles carry LevelId 0, and a hand-made map has no
+            // LvlPrest row at all; neither names a level, so neither reaches LvlTypes. The DS1's
+            // own header still lists the DT1s it was authored against.
+            paths = EmbeddedTileset(collision, Resolve);
+            if (paths.Length == 0) throw new InvalidDataException(
+                "This DS1 is assigned to no level and its header lists no DT1 file that exists here. Open it through a level project that names the tileset.");
+            mask = paths.Length >= 32 ? uint.MaxValue : (1u << paths.Length) - 1;
+            source = TilesetSource.Ds1Header;
         }
+        // No LvlTypes row lists blank.dt1, yet maps across every act fill unused ground with its
+        // floor 30 — the engine keeps it loaded for all of them. Appending it last leaves the
+        // level's own tiles first in each variant list.
+        string blank = Resolve("data/global/tiles/act1/outdoors/blank.dt1");
+        if (File.Exists(blank) && !paths.Contains(blank, StringComparer.OrdinalIgnoreCase)) paths = [.. paths, blank];
         var tiles = new List<Dt1Floor>();
         foreach (var path in paths) { token.ThrowIfCancellationRequested(); tiles.AddRange(Dt1Reader.LoadFloors(path)); }
         var map = Ds1Floors.Load(ds1Path);
@@ -173,8 +198,43 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
         if (palette.Length != 768) throw new InvalidDataException("Expected a 256-color BGR act palette.");
         var collisionTiles = new List<Dt1CollisionTile>();
         foreach (var path in paths) { token.ThrowIfCancellationRequested(); collisionTiles.AddRange(LegacyCollision.ReadTiles(path)); }
-        return new(map, tiles.GroupBy(t => (t.Main, t.Sub)).ToDictionary(g => g.Key, g => g.ToArray()), palette, ds1Path, paths, mask)
-            { Collision = new(Ds1CollisionDocument.Load(ds1Path), collisionTiles) };
+        return new(map, tiles.GroupBy(t => (t.Main, t.Sub)).ToDictionary(g => g.Key, g => g.ToArray()), palette, ds1Path, paths, mask, source)
+            { Collision = new(collision, collisionTiles) };
+    }
+
+    /// <summary>The LvlPrest row that assigns this DS1 to a level, or null when none does.</summary>
+    private static Dictionary<string, string>? LevelTablePreset(string ds1Path, AssetResolver resolver,
+        Func<string, string> normalize, Func<string, string> resolve)
+    {
+        string relative;
+        // A map outside the extraction, or one whose name is ambiguous, simply has no row.
+        try { relative = normalize(PresetPairing.RelativeDs1(ds1Path, resolver)); } catch (InvalidDataException) { return null; }
+        var matches = Table(resolve("data/global/excel/lvlprest.txt"))
+            .Where(r => Enumerable.Range(1, 6).Any(i => r.TryGetValue($"File{i}", out var f) && normalize(f) == relative)).ToArray();
+        return matches.Length == 1 && matches[0].GetValueOrDefault("LevelId") is { } id && id != "0" && id.Length > 0 ? matches[0] : null;
+    }
+
+    /// <summary>
+    /// DT1 paths a DS1 records for itself, as `\d2\data\global\tiles\…\name.tg1`. Entries that do
+    /// not resolve to a file present here are dropped rather than failing the load, so a map that
+    /// references one unshipped tile still opens with the rest of its tileset.
+    /// </summary>
+    private static string[] EmbeddedTileset(Ds1CollisionDocument collision, Func<string, string> resolve)
+    {
+        var paths = new List<string>();
+        foreach (string entry in collision.TileFiles)
+        {
+            string name = entry.Replace('\\', '/').ToLowerInvariant();
+            int at = name.IndexOf("global/tiles/", StringComparison.Ordinal);
+            if (at < 0) continue;
+            string asset = "data/" + name[at..];
+            if (asset.EndsWith(".tg1", StringComparison.Ordinal)) asset = asset[..^4] + ".dt1";
+            if (!asset.EndsWith(".dt1", StringComparison.Ordinal)) continue;
+            string resolved;
+            try { resolved = resolve(asset); } catch (InvalidDataException) { continue; }
+            if (File.Exists(resolved) && !paths.Contains(resolved, StringComparer.OrdinalIgnoreCase)) paths.Add(resolved);
+        }
+        return [.. paths];
     }
 
     private static Dictionary<string, string>[] Table(string path)

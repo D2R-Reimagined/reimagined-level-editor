@@ -77,6 +77,9 @@ Ground tools change DS1 tiles and collision. They do not sculpt the HD mesh or r
 | Orbit selection | Alt + right-drag |
 | Faster / finer travel | Shift / Ctrl |
 | Move model | Left-drag (terrain must be unlocked) |
+| Move along one axis | Drag the selection gizmo: red X, green Y, blue Z |
+| Fill an axis with copies | Hold Alt before dragging a gizmo arrow |
+| Box select | Left-drag empty space; Shift-drag adds, Ctrl-drag toggles |
 | Cancel drag | Esc |
 | Frame selection / whole scene | F / Home |
 | Delete model | Delete in viewport/entity list, or Inspector button |
@@ -84,6 +87,10 @@ Ground tools change DS1 tiles and collision. They do not sculpt the HD mesh or r
 | Save | Ctrl+S |
 
 The DS1 viewer also supports middle-drag panning. Home restores the HD camera's default orientation matching DS1 axes. Transform text must be applied before it becomes a document edit.
+
+Selected editable objects show a movement gizmo at their center. Drag an arrow to move along its world axis; the other two coordinates stay fixed. Arrows also move selected groups together. Release to commit one undoable move, or press Esc to cancel. DS1 NPCs show X/Z arrows only because their positions have no editable height. An axis viewed directly end-on is hidden; orbit slightly to use it.
+
+**Alt + arrow drag** repeats the selected HD model along that axis while leaving the original in place. Each full model-width of travel adds another preview copy; dragging back removes copies, and dragging the opposite way fills the negative axis. Spacing uses the displayed model's bounds after rotation and scale, or the combined bounds of a selection. Release places the row as one undoable edit and selects its last copy; Esc or lost mouse capture cancels it. Copies retain the HD entity's components with new names and IDs. DS1 units, collision links and saved groups are not copied. Missing-model markers, terrain and parented objects cannot be repeated. Each drag is limited to 256 new models.
 
 **Lock terrain** is on by default. Locked terrain is not a click target in the viewport, so clicks pass through it to the props standing on it, and neither dragging nor the inspector's transform fields can move it. It stays visible and can still be selected from the entity list to inspect. Untick it to move terrain deliberately. The setting is per session, so every launch starts with terrain protected; **Terrain** remains a separate visibility toggle.
 
@@ -231,6 +238,8 @@ Developer check with extracted Act 1 town assets: launch with `--preset <towns1.
 ### Asset groups
 
 Ctrl-click models in the viewport to add/remove them from the selection; Shift-click adds models. The entity list supports Ctrl/Shift multi-selection too. Drag any selected model to move the selection together, press Esc to cancel, and use F to frame the entire selection. One undo restores the complete move, including linked DS1 units, patrols, and collision. Shared collision belonging to other objects stays protected; a rejected destination rolls back the entire move.
+
+Drag a box from empty viewport space to select multiple objects at once. Objects whose projected bounds touch the box are selected, including objects behind other geometry; locked terrain and hidden objects are excluded. Shift-drag adds to the selection, and Ctrl-drag toggles the objects in the box. Either modifier also lets you start the box over an object. Saved groups select together. Release applies the selection; Esc or lost mouse capture cancels without changing it. Clicking empty space clears the selection, while a modified empty click keeps it. Ordinary object dragging and gizmo dragging keep their existing behavior.
 
 For reusable groups, enter a name and choose **Group selected**. Clicking a group member selects its whole group. **Ungroup** removes the grouping without moving models or changing gameplay links. Group membership saves immediately beside the preset as `<preset>.rle-groups.json`; keep that file with your working preset to retain groups across launches. It is editor metadata and can be gitignored (`*.rle-groups.json` and `*.rle-groups.json.bak`). Game JSON does not gain parent entities or group fields. Save-copy exports do not carry this local grouping file automatically.
 

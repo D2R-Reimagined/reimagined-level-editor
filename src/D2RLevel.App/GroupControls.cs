@@ -30,6 +30,16 @@ public partial class MainWindow
             add ? previous.Union(members) : previous.Contains(entity) ? previous : members;
         SetSelection(next); Hierarchy.ScrollIntoView(entity);
     }
+    private void SelectRegionFromViewport(PresetEntity[] hits, ModifierKeys modifiers)
+    {
+        var previous = SelectedEntities;
+        var members = hits.SelectMany(e => assetGroups?.Find(e) is { } group ? assetGroups.Resolve(group) : [e])
+            .Where(e => !Scene.IsLocked(e)).Distinct().ToArray();
+        Search.Text = "";
+        var next = modifiers.HasFlag(ModifierKeys.Control) ? previous.Except(members).Union(members.Except(previous)) :
+            modifiers.HasFlag(ModifierKeys.Shift) ? previous.Union(members) : members;
+        SetSelection(next);
+    }
     private void UpdateSelection()
     {
         if (changingSelection) return;

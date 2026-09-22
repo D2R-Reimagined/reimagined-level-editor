@@ -1,4 +1,4 @@
-﻿{
+{
   "$language": "Deutsch",
   "$note": "Erstentwurf per maschineller Übersetzung. Korrekturen von Muttersprachlern sind willkommen – siehe README.md.",
   "#{0} · {1} ID {2} · ({3}, {4})": "#{0} · {1} ID {2} · ({3}, {4})",
@@ -381,5 +381,14 @@
   "{0}: {1} assets. Click any member to select the group. Group metadata is saved beside the preset.": "{0}: {1} Assets. Klicke auf ein Mitglied, um die Gruppe auszuwählen. Gruppenmetadaten werden neben dem Preset gespeichert.",
   "{0}:{1} · {2} variant(s)": "{0}:{1} · {2} Variante(n)",
   "Back to the open scene.": "Zurück zur geöffneten Szene.",
-  "Back to the workspace scene list. This scene stays open.": "Zurück zur Szenenliste des Arbeitsbereichs. Diese Szene bleibt geöffnet."
+  "Back to the workspace scene list. This scene stays open.": "Zurück zur Szenenliste des Arbeitsbereichs. Diese Szene bleibt geöffnet.",
+  "tileset from LvlPrest/LvlTypes": "Tileset aus LvlPrest/LvlTypes",
+  "tileset from the DS1 header · this room is shared between generated levels": "Tileset aus dem DS1-Header - dieser Raum wird von generierten Leveln gemeinsam genutzt",
+  "tileset from the level project": "Tileset aus dem Levelprojekt",
+  "Alt-drag: repeat at model-sized intervals. Release to place; Esc cancels.": "",
+  "Created {0} HD copies. Ctrl+Z undoes the row. DS1 units and collision links are not copied.": "",
+  "{0} copies (drag limit). Release to place; Esc cancels.": "",
+  "{0} copies. Release to place; Esc cancels.": "",
+  "Gizmo arrows: move on one axis · Alt + arrow drag: fill with model-sized copies": "",
+  "Drag empty space: box select · Shift-drag: add · Ctrl-drag: toggle · Click empty space: deselect": ""
 }

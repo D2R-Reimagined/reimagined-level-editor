@@ -47,8 +47,10 @@ public partial class MainWindow : Window
         InitializeWindowPlacement();
         FullDetail.IsChecked = args.Contains("--full-detail");
         Scene.EntitySelected += SelectFromViewport;
+        Scene.RegionSelected += SelectRegionFromViewport;
         Scene.AllowModelDragging = true;
         Scene.DragCommitted += (entity, transform) => { try { Apply(entity, transform); } catch (Exception ex) { Error(ex); } };
+        Scene.DuplicationCommitted += DuplicateAlongAxis;
         Closing += OnClosing;
         PreviewKeyDown += OnKey;
         Loaded += async (_, _) => await Startup();
@@ -101,6 +103,9 @@ public partial class MainWindow : Window
             }
             if (Argument("--smoke-output") is { } output)
             {
+                if (arguments.Contains("--box-selection-smoke")) { await VerifyBoxSelection(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--duplicate-smoke")) { await VerifyDuplication(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--gizmo-smoke")) { await VerifyMovementGizmo(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--authoring-smoke")) { await VerifyAuthoring(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--workspace-smoke") || arguments.Contains("--workspace-restore-smoke"))
                 { await VerifyWorkspace(output); Application.Current.Shutdown(0); return; }
