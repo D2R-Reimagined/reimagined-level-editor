@@ -296,6 +296,10 @@ try
     PathChecks.Run(folder, Check, Throws);
     CalibrationChecks.Run(folder, Check, Throws);
     AuthoringChecks.Run(folder, Check, Throws);
+    LevelPropertiesChecks.Run(folder, Check, Throws);
+    GameplayCatalogChecks.Run(folder, Check, Throws);
+    EntranceChecks.Run(folder, Check, Throws);
+    PrefabChecks.Run(folder, Check, Throws);
     DuplicationChecks.Run(folder, Check, Throws);
     LocalizationChecks.Run(folder, Check, Throws);
     // The real template must match the real sources, so a wording change cannot land without updating it.

@@ -54,6 +54,7 @@ public partial class MainWindow : Window
         Closing += OnClosing;
         PreviewKeyDown += OnKey;
         Loaded += async (_, _) => await Startup();
+        LevelDetails.RefreshRequested += async () => await RefreshLevelProperties();
         RefreshState();
     }
     private string? Argument(string name) => Argument(arguments, name);
@@ -103,6 +104,10 @@ public partial class MainWindow : Window
             }
             if (Argument("--smoke-output") is { } output)
             {
+                if (arguments.Contains("--prefab-smoke")) { await VerifyPrefabs(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--entrance-smoke")) { await VerifyEntrances(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--gameplay-browser-smoke")) { await VerifyGameplayBrowser(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--level-properties-smoke")) { await VerifyLevelProperties(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--box-selection-smoke")) { await VerifyBoxSelection(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--duplicate-smoke")) { await VerifyDuplication(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--gizmo-smoke")) { await VerifyMovementGizmo(output); Application.Current.Shutdown(0); return; }
@@ -262,9 +267,9 @@ public partial class MainWindow : Window
 
     private bool CanReplace()
     {
-        if ((document?.IsDirty == true || placementLinks?.HasMetadataChanges == true ||
+        if ((document?.IsDirty == true || connectionEdits?.IsDirty == true || placementLinks?.HasMetadataChanges == true ||
             (document?.History.Shared == true && pairedScene?.Collision?.Document.IsDirty == true)) &&
-            MessageBox.Show(this, L.T("Discard unsaved JSON, DS1 or link edits? Use Save linked pair to keep them together."), L.T("Unsaved changes"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
+            MessageBox.Show(this, L.T("Discard unsaved scene or connection edits? Use Save Scene for workspace edits, or Save linked pair for a standalone scene."), L.T("Unsaved changes"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return false;
         ds1Window?.Close();
         return ds1Window is null; // A canceled DS1 close also cancels preset replacement/app exit.
     }
@@ -309,15 +314,19 @@ public partial class MainWindow : Window
             var nextNpcs = await Task.Run(() => NpcPreviewLoader.Load(pairResult.Item1, candidateResolver, PresetPairing.Split(candidate.SourcePath, "hd/env/preset")?.DataRoot, progress, cts.Token), cts.Token);
             result = await Task.Run(() => TerrainPreview.Apply(result, pairResult.Item1, cts.Token), cts.Token);
             var nextGround = await Task.Run(() => new NpcGround(result.Items, cts.Token), cts.Token);
+            var nextLevel = await Task.Run(() => LevelProperties.Load(candidate.SourcePath, pairResult.Item1?.Ds1Path, candidateResolver), cts.Token);
             cts.Token.ThrowIfCancellationRequested();
             if (document != candidate)
             {
                 addedModels.Clear(); removedModels.Clear();
+                connectionEdits = null;
                 workspaceSession = string.Equals(openingWorkspaceSession?.Scene.JsonPath, candidate.SourcePath, StringComparison.OrdinalIgnoreCase) ? openingWorkspaceSession : null;
                 exploringWorkspace = false; SetWorkspaceView();
             }
             document = candidate; resolver = candidateResolver; assetGroups = new(candidate);
             (pairedScene, pairedStatus) = pairResult;
+            levelPropertiesRevision++;
+            LevelDetails.SetSnapshot(nextLevel);
             Ds1Preview.SetScene(pairedScene, pairedStatus);
             foreach (var item in result.Items) if (addedModels.ContainsKey(item.Entity)) addedModels[item.Entity] = item;
             loadedFullDetail = fullDetail;
@@ -508,6 +517,7 @@ public partial class MainWindow : Window
             Ds1Preview.SetScene(pairedScene, pairedStatus);
             InitializeLinks();
             RefreshNpcs();
+            _ = RefreshLevelProperties(allowDuringLoad: true);
         }
         RefreshPair();
         window.SceneChanged += RefreshPair;
@@ -528,6 +538,8 @@ public partial class MainWindow : Window
         window.SaveWorkspaceRequested += () => SavePair_Click(this, new());
         window.ConfigureLinkedCollision(placementLinks, Selected?.GameplayUnitIndex is null ? Selected : null);
         window.ConfigurePlacements(document is null ? null : LevelProject.ForPreset(document.SourcePath)?.Placements);
+        window.GameplayBrowserRequested += () => GameplayAssets_Click(window, new());
+        window.EntrancesRequested += () => Entrances_Click(window, new());
         window.Show();
     }
     private void Filter()
@@ -653,6 +665,7 @@ public partial class MainWindow : Window
     private void RefreshState()
     {
         bool busy = loading is not null;
+        LevelDetails.IsEnabled = !busy;
         Scene.IsEnabled = !busy;
         DecoderNotice.Visibility = ModelReader.IsDecoderConfigured ? Visibility.Collapsed : Visibility.Visible;
         Toolbar.IsEnabled = !busy; Hierarchy.IsEnabled = !busy; TransformPanel.IsEnabled = !busy && Selected?.CanTransform == true && !Selected.HasParent && Selected.GameplayUnitIndex is null && !Scene.IsLocked(Selected);
@@ -667,7 +680,7 @@ public partial class MainWindow : Window
         SavePairButton.Content = workspaceSession is not null ? L.T("Save Scene") : L.T("Save linked pair…");
         DeleteModelButton.IsEnabled = !busy && SelectedEntities.Length == 1 && Selected is { HasParent: false, IsTerrain: false, PreviewModel: not null };
         RefreshLinkStatus();
-        bool dirty = document?.IsDirty == true || placementLinks?.HasMetadataChanges == true || (document?.History.Shared == true && pairedScene?.Collision?.Document.IsDirty == true);
+        bool dirty = document?.IsDirty == true || connectionEdits?.IsDirty == true || placementLinks?.HasMetadataChanges == true || (document?.History.Shared == true && pairedScene?.Collision?.Document.IsDirty == true);
         Title = "Reimagined Level Editor · " + (document is null ? L.T("Workspace") : Path.GetFileName(document.SourcePath)) + (dirty ? " *" : "");
     }
     private void Notify(string title, string message, bool error = false) => ToastManager.Show(ds1Window?.IsActive == true ? ds1Window : this, title, message, error);

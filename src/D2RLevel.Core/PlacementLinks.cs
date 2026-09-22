@@ -20,7 +20,7 @@ public sealed record LinkHealth(PlacementLink Link, string? Reason)
     public bool IsHealthy => Reason is null;
 }
 
-public sealed class PlacementLinks
+public sealed partial class PlacementLinks
 {
     public const string Suffix = ".rle-links.json";
     /// <summary>Version 2 added the per-pair grid calibration. Version 1 files still load.</summary>
@@ -220,6 +220,18 @@ public sealed class PlacementLinks
         ds1.ProtectedUnit = index => Healthy.Any(l => l.Unit?.Index == index);
     }
     public void ConnectWorkspace() { EnsureReady(); Activate(); }
+
+    public void MoveExit(int slot, int x, int y)
+    {
+        EnsureReady(); ValidateStructure(); Activate();
+        json.History.Transaction(() =>
+        {
+            string fingerprint = ds1.LinkFingerprint();
+            ds1.MoveExitCore(slot, x, y);
+            string next = ds1.LinkFingerprint();
+            if (next != fingerprint) ChangeMetadata(Upgraded() with { Fingerprint = next }, null);
+        }, ds1);
+    }
 
     public int PaintFloor(int layer, IEnumerable<(int X, int Y)> cells, uint tile)
     {

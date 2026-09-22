@@ -48,6 +48,8 @@ public partial class MainWindow
     private void ShowWorkspaceExplorer()
     {
         Scene.CancelDrag(); document = null; pairedScene = null; workspaceSession = null;
+        connectionEdits = null;
+        levelPropertiesRevision++; LevelDetails.SetSnapshot(null);
         pairedStatus = L.T("Choose a workspace scene."); InitializeLinks();
         assetGroups = null;
         npcItems.Clear(); npcPreview = new(new(), []);
@@ -137,9 +139,10 @@ public partial class MainWindow
         if (workspaceSession is null || document is null || pairedScene?.Collision?.Document is not { } ds1 || placementLinks is null) return;
         try
         {
-            workspaceSession.Save(document, ds1, placementLinks);
+            workspaceSession.Save(document, ds1, placementLinks, connectionEdits);
+            _ = RefreshLevelProperties();
             RefreshState(); PopulateInspector(); ds1Window?.RefreshFromWorkspace();
-            Status.Text = L.T("Saved JSON, DS1 and links to workspace: {0} · previous files kept as .bak", workspaceSession.Scene.Name);
+            Status.Text = L.T("Saved scene and staged connections to workspace: {0} · previous files kept as .bak", workspaceSession.Scene.Name);
             Notify(L.T("Scene saved"), workspaceSession.Scene.Name + "\n" + L.T("JSON, DS1 and links saved. Previous files kept as .bak."));
         }
         catch (Exception ex) { Error(ex); }

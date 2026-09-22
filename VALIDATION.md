@@ -11,6 +11,22 @@ The dependency-free assertion runner uses synthetic fixtures and does not requir
 
 ## Optional checks with extracted assets
 
+Gameplay prefab regression checks cover ownership closure, source-preserving capture, relative transforms/subtiles/footprints/patrols, fresh IDs, logical recipe remapping, changed-definition rejection, overlap/bounds/act/scale checks, shared undo/redo, nested transaction rollback, healthy save/reopen, bundled dependency closure, LOD aliases, declaration metadata, integrity checks, conflicting targets, path containment and unsupported components.
+
+Use `--prefab-smoke` with an Act 1 town preset (for example `act1/town/townw1.json`), extracted `--data` and a fresh `--smoke-output`. It creates a disposable workspace, adds a direct Fallen recipe to that fixture's monster preset table, and assembles a real prop with two units, patrols and owned collision. It checks bundled assets, capture without source edits, empty search, invalid placement, scene/viewport undo and redo, package tampering, and save/reopen. It captures the library at 1220×850 and 1020×720 plus the capture dialog. This verifies local WPF and data round trips; it does not establish live-game behavior or every binary dependency format.
+
+Entrance checks cover hidden-group translation, byte-exact undo/redo, cached orientations, paired-link fingerprint transactions, occupied/border/blocked/empty destinations, special-marker exclusion, directional Warp Id variants, reciprocal swaps, unused connections, malformed/generated/cross-act/ambiguous endpoints, Unicode/BOM/line-ending preservation, external dependency changes and fourth-file save rollback.
+
+Use `--entrance-smoke` with `--preset <data>/hd/env/preset/expansion/mountaintop/mtntop.json`, `--data <data>` and a fresh `--smoke-output` folder. It inspects real Arreat Summit exit markers, verifies empty-space deselection and shared moves, then exercises preview/apply/undo/redo against a disposable four-area fixture using copied maps. It saves/reopens the complete workspace and captures WPF at 1280×850 and 1050×700. The fixture connections are not live-game travel proof. See [entrance editing](docs/entrances-and-exits.md).
+
+The assertion runner covers level properties with workspace/base precedence, exact preset paths, duplicate and missing references, malformed tables, difficulty fields, shared Nightmare/Hell pools and source provenance.
+
+Gameplay catalog checks cover act-local monster slots (including blank entries), explicit sparse object indices, current-act mappings, disabled and unmapped definitions, superunique resolution, duplicate keys, table-only mod overrides, stale-recipe rejection and shared placement undo.
+
+Use `--gameplay-browser-smoke` with an Act 1 town preset to exercise the browser with real Akara, chest and superunique meshes. It creates a disposable workspace and verifies search clearing, unavailable entries, invalid coordinates, NPC/object placement IDs, undo/redo, immediate NPC previews, stale saved-table rejection and paired save/reopen. It captures the browser at 1120×800 and 950×650. Source assets stay unchanged; this is WPF/programmatic proof, not an in-game check.
+
+Add `--level-properties-smoke` to the app command below with an Act 1 town preset. It creates a disposable workspace, verifies saved table refresh and difficulty controls, checks ambiguous/reusable contexts and inspector navigation, confirms source maps are unchanged, and captures the panel at 1100×700. This drives WPF controls programmatically; it does not test game runtime behavior.
+
 ```powershell
 dotnet run --project tests/D2RLevel.Tests -- --audit 'C:\maps\town.json' 'C:\extracted\data' 'missing-assets.txt'
 dotnet run --project tests/D2RLevel.Tests -- --probe 'C:\assets\prop.model' 'C:\tools\granny2.dll'

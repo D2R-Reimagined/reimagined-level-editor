@@ -16,6 +16,8 @@ public sealed partial class LegacyFloorWindow
     private bool refreshingUnits;
     public event Action<int, double>? LinkUnitRequested;
     public event Action<int>? UnitSelected;
+    public event Action? GameplayBrowserRequested;
+    public event Action? EntrancesRequested;
     public void SelectGameplayUnit(int index) { if (unitList.SelectedIndex != index) unitList.SelectedIndex = index; }
     private Button? linkUnitButton;
     internal void VerifyLinkUnitButton(int index)
@@ -30,7 +32,9 @@ public sealed partial class LegacyFloorWindow
         row.Children.Add(new TextBlock { Text = L.T("Subtile X / Y"), VerticalAlignment = VerticalAlignment.Center });
         row.Children.Add(unitX); row.Children.Add(unitY);
         var move = new Button { Content = L.T("Move unit") }; row.Children.Add(move);
-        var add = new Button { Content = L.T("Place unit…") }; row.Children.Add(add); add.Click += (_, _) => AddPlacement();
+        var browse = new Button { Content = L.T("Gameplay assets…") }; row.Children.Add(browse); browse.Click += (_, _) => GameplayBrowserRequested?.Invoke();
+        var entrances = new Button { Content = L.T("Entrances and exits…") }; row.Children.Add(entrances); entrances.Click += (_, _) => EntrancesRequested?.Invoke();
+        var add = new Button { Content = L.T("Place template…") }; row.Children.Add(add); add.Click += (_, _) => AddPlacement();
         var delete = new Button { Content = L.T("Delete unit") }; row.Children.Add(delete); delete.Click += (_, _) => DeletePlacement();
         var link = new Button { Content = L.T("Link unit to HD"), ToolTip = L.T("Select an HD model in the JSON view and a DS1 unit here. Uses this pair's grid calibration.") }; row.Children.Add(link);
         linkUnitButton = link;

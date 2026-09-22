@@ -9,6 +9,10 @@ A Windows level editor for Diablo II: Resurrected, built with C# and .NET 10. Ed
 - Insert template gameplay units, delete unlinked units and create their first patrol; structural edits preserve other links.
 - Compact File, Create, View and Assets menus, with Save and Undo/Redo kept on the toolbar.
 - Workspace scene browser with paired JSON/DS1 discovery, search and recent workspaces.
+- Level properties panel with area/preset/tileset context, difficulty settings, monster pools and mod-aware table sources.
+- Gameplay asset browser with act-aware monster, NPC, superunique and object recipes, reference previews and undoable placement.
+- Entrance/exit maps with destination inspection, hidden-marker moves, reciprocal connection authoring and shared undo.
+- Gameplay prefab library with bundled HD dependencies, gameplay recipes, patrols, owned collision and one-step placement undo.
 - Textured model preview, model explorer, placement, transforms and deletion.
 - Terrain toggle and terrain lock, inline collision preview and a separate interactive DS1 window.
 - Explicit links between HD models, DS1 units and collision footprints.
@@ -52,7 +56,27 @@ dotnet run --project src/D2RLevel.App -- --preset 'C:\maps\town.json' --data 'C:
 4. **Save Scene** or **Ctrl+S** writes both maps and `.rle-links.json` metadata back to their workspace locations. Previous files receive `.bak` backups. Files changed externally since opening prevent a save until reopened.
 5. **Workspace Explorer** returns to the list and prompts before discarding edits. Manually opened presets retain the separate export-copy workflow.
 
-Saves stage and validate files before replacement. A failed replacement attempts to restore earlier files; the three-file operation is not atomic against crashes or power loss. Keep backups and validate edits in-game.
+Saves stage and validate files before replacement. Staged entrance/exit connections include the workspace Levels override. A failed replacement attempts to restore earlier files; this multi-file operation is not atomic against crashes or power loss. Keep backups and validate edits in-game.
+
+## Edit entrances and exits
+
+Choose **Create → Entrances and exits…** or the matching button in the DS1 window. Select exit markers to inspect destinations, return routes and Warp settings; filter candidate areas by name or ID and inspect their preset variants. Hidden exit groups can move with shared undo. Workspace scenes can preview and apply supported reciprocal connection changes, saved alongside the scene. See [supported operations and workflow](docs/entrances-and-exits.md).
+
+## Reuse gameplay prefabs
+
+Select HD models in a workspace scene, then choose **Create → Gameplay prefabs… → Save selection as prefab…**. Give the assembly a name, confirm the grid scale, and select any additional gameplay units. Existing ownership links include their related visuals, units and collision automatically; patrols follow the included units. The prefab library previews the assembled models and gameplay formation before placement.
+
+Prefabs save under the workspace's `.rle-prefabs` directory with referenced HD assets. **Open prefab folder…** reuses a package from another workspace. Placement validates the act, grid scale, gameplay definitions, bounds and dependencies, then inserts one undoable assembly. **Save Scene** persists the result. See [prefab contents, dependency handling and limits](docs/gameplay-prefabs.md).
+
+## Inspect level properties
+
+Choose **Level** above the right inspector, or **View → Level properties**. **Object** returns to the existing entity inspector. The panel reads the current paired DS1's exact game-relative path through `lvlprest.txt`, `levels.txt` and `lvltypes.txt`.
+
+Choose **Normal**, **Nightmare** or **Hell** to inspect area levels (Expansion and Classic), raw density, unique monster limits, table dimensions and configured monster IDs. Nightmare and Hell use the shared `nmon` pool. These are saved table settings, not simulated encounters or guaranteed monster stats. Blank values remain “Not specified.” Preset variants, the DT1 mask and configured tileset files appear below.
+
+Workspace tables replace the corresponding base tables in full. **Data sources** lists the effective paths, and hovering a field value shows its file, line and column. **Refresh** rereads saved tables without reloading the scene; opening a scene or reloading assets also refreshes the panel. This first panel is read-only and does not include unsaved changes in Mod Studio.
+
+When several preset rows reference a DS1, choose a context explicitly. Reusable rooms with `LevelId=0`, missing rows and malformed tables report their unresolved context instead of guessing. Authored projects show their retained filename's table context and do not imply a newly registered area. Tileset definitions shown here may differ from a project's explicit loaded tileset.
 
 ## Create a level
 
@@ -60,12 +84,22 @@ Saves stage and validate files before replacement. A failed replacement attempts
 2. Choose **New level**, enter a project name and starting floor, and choose whether to keep existing scenery. The initial size matches the template terrain. Empty ground is allowed.
 3. Choose a parent folder. The editor creates a new folder containing a `data` workspace; it never replaces an existing project folder. Terrain, environment and unknown components remain; known standalone scenery is cleared by default. Hierarchies are preserved intact.
 4. Open **Ground / gameplay**. Choose **Paint floor**, **Erase floor**, **Pick floor**, **Fill floor** or **Rectangle floor**, select a tile/layer and draw. Pencil/erase support brush sizes. Release commits one stroke; Escape or lost capture cancels. Palette thumbnails show the first available tile variant.
-5. Use **Create → Place model** for scenery, or **Place unit** in the gameplay window for a template gameplay record. Gameplay choices preserve the template's type, ID and flags. New NPC types may initially appear as markers; **Assets → Reload assets** loads their available character previews. **Delete unit** refuses linked units; delete the linked HD object or unlink first.
+5. Use **Create → Place model** for scenery, **Create → Gameplay assets** for named gameplay entries, or **Place template** in the gameplay window for a template record. Template choices preserve their type, ID and flags. **Delete unit** refuses linked units; delete the linked HD object or unlink first.
 6. **Save Scene** writes the pair and links. Reopen through Load Workspace or Open preset; `.rle-project.json` supplies the explicit tileset and project name without requiring filename-based table inference.
 
 New projects contain fresh floor/gameplay data and **no walls or entrances**. They retain the template's game-relative filenames and do not register a new area ID. The copied DT1 files, palette and available gameplay tables preserve the template context; HD overrides referenced by the preset are carried when creating from a mod. Other game assets still come from your extracted asset folder. Keep project files together.
 
 Ground tools change DS1 tiles and collision. They do not sculpt the HD mesh or reproduce the game's biome shader. The DS1 window and inspector read edits immediately; reloading assets refreshes the approximate terrain projection where available. Do not install a blank project over a working map expecting its entrances to remain. Entry/exit authoring and in-game validation are still required before a project is playable. See the [authoring plan and execution status](docs/new-level-authoring-plan.md).
+
+## Browse gameplay assets
+
+Open a paired scene and choose **Create → Gameplay assets…**, or **Gameplay assets…** in **Ground / gameplay**. Search names, data keys or DS1 preset IDs, then filter by monsters, NPCs, superuniques or objects. The catalog uses the current map's act. Turn off **Placeable in this act only** to inspect definitions without a usable mapping and runtime spawn markers; their reason for being unavailable appears beside the preview. Names are taken from the effective data tables and may be localization keys.
+
+The browser reads workspace tables before base assets. Type 1 recipes use the zero-based slot within that act's `monpreset.txt` rows, resolving `monstats.txt` or `superuniques.txt`. Type 2 recipes use the explicit act-specific `objpreset.Index`, resolving `ObjectClass` to `objects.Class`; they never use the Objects row number or comment ID. Definitions without mappings, disabled monsters and ambiguous references remain browse-only. This does not create new preset mappings or change game tables. **Refresh catalog** rereads saved data, and Place revalidates the selected mapping before editing.
+
+Select an entry for a static HD reference preview where assets are available. Superuniques use their base monster appearance. Object previews use an unambiguous normalized name match in `hd/objects/objects.json`; this is a visual reference, not gameplay ownership. Missing meshes do not prevent a valid gameplay placement. Animations, dynamic states, object collision and NPC services are not simulated.
+
+Enter whole **Subtile X / Y** coordinates and choose **Place gameplay unit**. One tile contains five subtiles. The initial position is the map center; each placement adds one DS1 unit as one shared undo operation. Raw flags use a unique matching scene/template value where available, otherwise `0`; decimal and `0x` hexadecimal values are accepted. Loaded NPC/monster previews appear immediately in the HD view. Objects appear as DS1 gameplay markers; no decorative HD entities or owned collision footprints are created. Use **Save Scene** or **Save linked pair** to save the result. The existing **Place template…** workflow remains available.
 
 ## Controls
 
@@ -173,7 +207,7 @@ Asset diagnostics, exception text from the map readers and the technical descrip
 - Terrain uses existing meshes; untextured terrain can use projected DS1/DT1 floor graphics as an approximate reference. This is not a terrain asset writer or the game's biome shader.
 - Collision tools edit supported DS1 overrides. Clearing an override cannot remove DT1/wall blocking. Variant-dependent and unresolved cells are indicated separately.
 - DS1 editing supports versions 16–18. Unsupported gameplay layouts remain preserved but cannot be edited. Unit IDs are displayed as raw IDs.
-- Parent transforms, warp/vis editing, DT1 writing, arbitrary per-subtile painting, map resizing and independent area registration are not implemented. New-level authoring currently uses fixed template dimensions, DS1 floor brushes and template gameplay placements.
+- Parent transforms, arbitrary Warp-definition editing, DT1 writing, arbitrary per-subtile painting, map resizing and independent area registration are not implemented. New-level authoring uses fixed template dimensions, DS1 floor brushes, catalog gameplay recipes and template placements.
 - Patrol editing covers points, their actions and creating a path for a unit that has none. Newly created DS1s include an empty patrol block for first-path creation. What each action code makes a unit do is not established here, and an imported DS1 that stores no patrol block at all cannot be given its first path.
 - Native mesh decoding must finish before cancellation takes effect. Large scenes use reduced detail and batching; performance varies with assets and hardware.
 - Translation covers the editor's own UI text. Diagnostics, reader exceptions and the descriptive strings produced by the core library (calibration summaries, broken-link reasons) are English-only for now.
@@ -231,7 +265,7 @@ This project's own source is licensed under the [MIT License](LICENSE), copyrigh
 
 The **NPCs** checkbox shows DS1 monster/NPC records in the HD viewport. Town NPCs resolve through the act-specific `monpreset.txt`, `monstats.txt`, and HD character definitions, with workspace overrides before the asset folder. Search names such as `akara` in the entity list, select a preview, and drag it to move its DS1 position and patrol. Selection follows between the DS1 window and HD view. Undo/redo is shared; use **Save Scene** or **Save linked pair** to save gameplay changes.
 
-These are transient static reference poses, never extra entities in the exported HD JSON. Terrain geometry supplies preview height where available; the HD units/tile setting controls horizontal placement. Animation, game character shaders, superunique/spawn-group resolution, and NPC creation/deletion are not implemented. Missing or unsupported character assets retain selectable named markers. A unit already linked to an HD prop must be moved through that prop so its existing collision link remains intact.
+These are transient static reference poses, never extra entities in the exported HD JSON. Terrain geometry supplies preview height where available; the HD units/tile setting controls horizontal placement. Scene animation, game character shaders and runtime spawn-group resolution are not implemented. Superuniques use their base monster appearance. The gameplay browser supports named NPC/monster insertion; unlinked units can be deleted in Ground / gameplay. Missing or unsupported character assets retain selectable named markers. A unit already linked to an HD prop must be moved through that prop so its existing collision link remains intact.
 
 Developer check with extracted Act 1 town assets: launch with `--preset <towns1.json> --data <asset-root> --npc-smoke --smoke-output <output-folder>`. The smoke verifies a real Akara mesh, DS1 movement, drag cancellation/commit, undo/redo, copy save/reopen, unchanged JSON, the visibility toggle, and DS1 selection synchronization.
 

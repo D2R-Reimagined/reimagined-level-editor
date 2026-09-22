@@ -18,9 +18,13 @@
             <MenuItem Header="{l:T '_Create'}">
               <MenuItem Header="{l:T 'New level from this scene…'}" Click="NewLevel_Click"/>
               <MenuItem Header="{l:T 'Place model…'}" Click="Models_Click"/>
+              <MenuItem Header="{l:T 'Gameplay assets…'}" Click="GameplayAssets_Click"/>
+              <MenuItem Header="{l:T 'Entrances and exits…'}" Click="Entrances_Click"/>
+              <MenuItem Header="{l:T 'Gameplay prefabs…'}" Click="GameplayPrefabs_Click"/>
               <MenuItem Header="{l:T 'Draw ground / edit gameplay…'}" Click="Floors_Click"/>
             </MenuItem>
             <MenuItem Header="{l:T '_View'}">
+              <MenuItem Header="{l:T 'Level properties'}" Click="LevelProperties_Click"/>
               <MenuItem Header="{l:T 'Focus selected area'}" Click="FocusArea_Click"/>
               <Separator Style="{StaticResource MenuSeparator}"/>
               <MenuItem x:Name="ShowNpcs" Header="{l:T 'NPCs'}" IsCheckable="True" IsChecked="True" StaysOpenOnClick="True" Click="Npcs_Click"/>
@@ -138,7 +142,14 @@
       </Grid>
       <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="#111821"/>
       <Border Grid.Column="4" x:Name="InspectorPanel" Background="#202833" Padding="12">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <DockPanel>
+          <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,8">
+            <Button x:Name="ObjectPropertiesButton" Content="{l:T 'Object'}" Click="ObjectProperties_Click" Background="#28686C"/>
+            <Button x:Name="LevelPropertiesButton" Content="{l:T 'Level'}" Click="LevelProperties_Click"/>
+          </UniformGrid>
+        <Grid>
+          <local:LevelPropertiesView x:Name="LevelDetails" Visibility="Collapsed"/>
+        <ScrollViewer x:Name="EntityInspector" VerticalScrollBarVisibility="Auto">
           <StackPanel>
             <local:Ds1InspectorPreview x:Name="Ds1Preview" Margin="0,0,0,14"/>
             <TextBlock x:Name="LinkStatus" TextWrapping="Wrap" Foreground="#E4BA74" Margin="0,4"/>
@@ -178,6 +189,8 @@
             <Expander Header="{l:T 'Preserved entity JSON'}" Foreground="#C7D6E5"><TextBox x:Name="RawJson" IsReadOnly="True" FontFamily="Consolas" FontSize="11" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/></Expander>
           </StackPanel>
         </ScrollViewer>
+        </Grid>
+        </DockPanel>
       </Border>
     </Grid>
   </DockPanel>

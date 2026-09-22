@@ -64,7 +64,7 @@ public sealed class WorkspaceSceneSession
     private static byte[]? Read(string path) => File.Exists(path) ? File.ReadAllBytes(path) : null;
     public void CaptureResetLinkFile() => snapshots[2] = Read(paths[2]);
     private static bool Equal(byte[]? a, byte[]? b) => a is null ? b is null : b is not null && a.SequenceEqual(b);
-    public void Save(PresetDocument json, Ds1CollisionDocument ds1, PlacementLinks links)
+    public void Save(PresetDocument json, Ds1CollisionDocument ds1, PlacementLinks links, LevelTableEdits? connections = null)
     {
         if (!Equal(Read(Scene.JsonPath + LevelProject.Suffix), projectSnapshot)) throw new IOException("Level project changed outside the editor. Reopen before saving.");
         LevelProject.ForPreset(Scene.JsonPath)?.VerifyMap(ds1);
@@ -76,29 +76,40 @@ public sealed class WorkspaceSceneSession
         for (int i = 0; i < paths.Length; i++)
             if (!Equal(Read(paths[i]), snapshots[i])) throw new IOException("File changed outside the editor. Reopen the scene before saving: " + paths[i]);
         byte[][] data = [json.Serialize(), ds1.Serialize(), links.MetadataFor(paths[2], paths[1])];
-        string[] staged = paths.Select(p => p + "." + Guid.NewGuid().ToString("N") + ".tmp").ToArray();
+        var savePaths = paths.ToArray(); var originals = snapshots.ToArray();
+        if (connections?.IsDirty == true)
+        {
+            if (!connections.TargetPath.Equals(SceneWorkspace.Inside(root, Path.Combine(root, "global", "excel", "levels.txt")), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Connection edits belong to another workspace.");
+            connections.VerifyUnchanged();
+            savePaths = [.. savePaths, connections.TargetPath]; originals = [.. originals, connections.TargetSnapshot]; data = [.. data, connections.Serialize()];
+        }
+        string[] staged = savePaths.Select(p => p + "." + Guid.NewGuid().ToString("N") + ".tmp").ToArray();
         int written = 0;
         try
         {
-            for (int i = 0; i < paths.Length; i++) File.WriteAllBytes(staged[i], data[i]);
+            for (int i = 0; i < savePaths.Length; i++) { Directory.CreateDirectory(Path.GetDirectoryName(savePaths[i])!); File.WriteAllBytes(staged[i], data[i]); }
             // Verify staged map parsers before replacing either live scene file.
             if (!PresetDocument.Load(staged[0]).Serialize().SequenceEqual(data[0]) || !Ds1CollisionDocument.Load(staged[1]).Serialize().SequenceEqual(data[1]))
                 throw new InvalidDataException("Staged scene failed verification.");
             var verified = new PlacementLinks(PresetDocument.Load(staged[0]), Ds1CollisionDocument.Load(staged[1]), staged[2]);
             if (verified.Warning is not null) throw new InvalidDataException(verified.Warning);
-            for (int i = 0; i < paths.Length; i++)
+            if (connections?.IsDirty == true) connections.VerifyUnchanged();
+            for (int i = 0; i < savePaths.Length; i++)
             {
-                if (snapshots[i] is not null) File.Replace(staged[i], paths[i], paths[i] + ".bak");
-                else File.Move(staged[i], paths[i]);
+                if (!Equal(Read(savePaths[i]), originals[i])) throw new IOException("File changed during save: " + savePaths[i]);
+                if (originals[i] is not null) File.Replace(staged[i], savePaths[i], savePaths[i] + ".bak");
+                else File.Move(staged[i], savePaths[i]);
                 written++;
             }
-            snapshots = data; json.MarkSaved(); ds1.MarkSaved(); links.MarkWorkspaceSaved();
+            snapshots = data.Take(3).Cast<byte[]?>().ToArray(); json.MarkSaved(); ds1.MarkSaved(); links.MarkWorkspaceSaved();
+            connections?.MarkSaved(paths[1], data[1]);
         }
         catch (Exception failure)
         {
             var errors = new List<Exception> { failure };
             for (int i = written - 1; i >= 0; i--)
-                try { if (snapshots[i] is { } original) File.WriteAllBytes(paths[i], original); else File.Delete(paths[i]); }
+                try { if (originals[i] is { } original) File.WriteAllBytes(savePaths[i], original); else File.Delete(savePaths[i]); }
                 catch (Exception rollback) { errors.Add(rollback); }
             if (errors.Count > 1) throw new AggregateException("Save failed and restoration was incomplete. Recover the scene using its .bak files.", errors);
             throw;
