@@ -9,7 +9,16 @@
     <AssemblyTitle>Reimagined Level Editor</AssemblyTitle>
     <Description>HD preset and DS1 gameplay editor for Reimagined</Description>
     <ApplicationIcon>Assets/ReimaginedLevelEditor.ico</ApplicationIcon>
+    <!-- Velopack must run before WPF starts, so Program.Main replaces the App.xaml-generated entry point. -->
+    <StartupObject>D2RLevel.App.Program</StartupObject>
+    <!-- Also read by scripts/Package-Release.ps1 so the vpk packer always matches the runtime library. -->
+    <VelopackVersion>1.2.0</VelopackVersion>
+    <UpdateRepositoryUrl Condition="'$(UpdateRepositoryUrl)' == ''">https://github.com/D2R-Reimagined/reimagined-level-editor</UpdateRepositoryUrl>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Velopack" Version="$(VelopackVersion)" />
+    <AssemblyMetadata Include="UpdateRepositoryUrl" Value="$(UpdateRepositoryUrl)" />
+  </ItemGroup>
   <ItemGroup>
     <Content Include="../../LICENSE" Link="LICENSE.txt" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <Resource Include="Assets/ReimaginedLevelEditor.ico" />

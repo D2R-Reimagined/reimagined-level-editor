@@ -1,6 +1,8 @@
 REIMAGINED LEVEL EDITOR
 
 Windows x64 portable build. No .NET installation is required.
+The plain Reimagined-Level-Editor ZIP does not update itself. For automatic updates, install
+D2RReimagined.LevelEditor-win-Setup.exe from the GitHub release instead.
 Extract the entire ZIP to a writable folder before running D2RLevel.App.exe.
 Keep the Native folder beside the EXE. No game assets or personal settings are included.
 Default packages include the 64-bit decoder at Native/granny2.dll for HD model

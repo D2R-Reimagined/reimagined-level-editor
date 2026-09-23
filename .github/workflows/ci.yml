@@ -81,8 +81,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Verify portable packaging
+      - name: Verify portable and Velopack packaging
         run: |
-          ./scripts/Publish-Portable.ps1 -Version 0.0.0-ci
-          $zip = @(Get-ChildItem artifacts/releases -Recurse -Filter 'Reimagined-Level-Editor-v0.0.0-ci-win-x64.zip')
-          if ($zip.Count -ne 1) { throw 'Expected exactly one packaged ZIP.' }
+          # Velopack rejects versions below 0.0.1.
+          ./scripts/Package-Release.ps1 -Version 0.0.1-ci
+          if (!(Test-Path artifacts/release/0.0.1-ci/Reimagined-Level-Editor-v0.0.1-ci-win-x64.zip)) { throw 'Expected the packaged ZIP.' }

@@ -102,6 +102,7 @@ public partial class MainWindow : Window
                 Status.Text = string.Join("\n", notices);
                 Diagnostics.Text += "\n" + string.Join("\n", notices);
             }
+            if (Argument("--smoke-output") is null) _ = CheckForUpdatesAsync(false);
             if (Argument("--smoke-output") is { } output)
             {
                 if (arguments.Contains("--prefab-smoke")) { await VerifyPrefabs(output); Application.Current.Shutdown(0); return; }

@@ -1,4 +1,4 @@
-param([string]$DotNet = 'dotnet', [switch]$IncludeGrannyRuntime = $true, [string]$Version)
+param([string]$DotNet = 'dotnet', [switch]$IncludeGrannyRuntime = $true, [string]$Version, [string]$UpdateRepositoryUrl, [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $versionArgs = @()
@@ -9,8 +9,10 @@ if ($Version) {
     $versionArgs = @("-p:Version=$Version", '-p:ContinuousIntegrationBuild=true')
     $suffix = "-v$Version"
 }
+if ($UpdateRepositoryUrl) { $versionArgs += "-p:UpdateRepositoryUrl=$UpdateRepositoryUrl" }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$destination = Join-Path $repo "artifacts/releases/$stamp"
+$destination = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $repo "artifacts/releases/$stamp" }
+if ($OutputDirectory -and (Test-Path -LiteralPath $destination)) { throw "Package destination already exists: $destination" }
 $package = Join-Path $destination 'Reimagined-Level-Editor-win-x64'
 New-Item -ItemType Directory -Path $package -Force | Out-Null
 if ($IncludeGrannyRuntime -and !(Test-Path -LiteralPath (Join-Path $repo 'src/D2RLevel.App/Native/granny2.dll'))) { throw 'Supply your licensed Native/granny2.dll before including the runtime.' }

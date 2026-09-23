@@ -45,6 +45,7 @@
             <Button x:Name="SaveSceneButton" Content="{l:T 'Save Scene'}" Click="SaveScene_Click" IsEnabled="False"/>
             <Button x:Name="UndoButton" Content="{l:T 'Undo'}" Click="Undo_Click"/><Button x:Name="RedoButton" Content="{l:T 'Redo'}" Click="Redo_Click"/>
             <Button Content="{l:T 'Ground / gameplay…'}" Click="Floors_Click"/>
+            <Button x:Name="UpdateButton" Content="{l:T 'Check for updates'}" Click="Update_Click" Margin="18,3,3,3"/>
         </WrapPanel>
         <TextBlock x:Name="PathLabel" Text="{l:T 'Open an extracted HD preset JSON to begin.'}" Foreground="#9AAFC4" Margin="4,8,4,0" TextTrimming="CharacterEllipsis"/>
         <TextBlock x:Name="DecoderNotice" Text="{l:T 'Model decoder unavailable — restore Native/granny2.dll from the application package and restart.'}" Foreground="#FFD28A" Margin="4,6,4,0" TextWrapping="Wrap"/>

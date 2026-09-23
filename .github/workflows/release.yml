@@ -60,21 +60,36 @@ jobs:
           dotnet run --project tests/D2RLevel.Tests -c Release --no-build
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
 
-      - name: Publish versioned portable package
+      # Installed editors poll releases.win.json on the latest GitHub release, so every
+      # Velopack output file must be attached to the release alongside the portable ZIP.
+      - name: Package portable ZIP and Velopack installer/update feed
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          REPOSITORY_URL: https://github.com/${{ github.repository }}
         run: |
-          ./scripts/Publish-Portable.ps1 -Version $env:RELEASE_VERSION
+          ./scripts/Package-Release.ps1 -Version $env:RELEASE_VERSION -RepositoryUrl $env:REPOSITORY_URL
+          $release = "artifacts/release/$env:RELEASE_VERSION"
           New-Item -ItemType Directory -Path artifacts/release-assets -Force | Out-Null
-          $zip = @(Get-ChildItem artifacts/releases -Recurse -Filter "Reimagined-Level-Editor-v$env:RELEASE_VERSION-win-x64.zip")
-          if ($zip.Count -ne 1) { throw 'Expected exactly one versioned ZIP.' }
-          Copy-Item -LiteralPath $zip[0].FullName -Destination artifacts/release-assets
-          Copy-Item -LiteralPath ($zip[0].FullName + '.sha256') -Destination artifacts/release-assets
+          $zip = Join-Path $release "Reimagined-Level-Editor-v$env:RELEASE_VERSION-win-x64.zip"
+          if (!(Test-Path -LiteralPath $zip)) { throw 'Expected the versioned portable ZIP.' }
+          Copy-Item -LiteralPath $zip, "$zip.sha256" -Destination artifacts/release-assets
+          Get-ChildItem "$release/velopack" -File | ForEach-Object {
+            if (Test-Path -LiteralPath (Join-Path artifacts/release-assets $_.Name)) { throw "Duplicate release asset: $($_.Name)" }
+            Copy-Item -LiteralPath $_.FullName -Destination artifacts/release-assets
+          }
 
       - name: Generate semantic release notes
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
-        run: ./.github/scripts/Generate-ReleaseNotes.ps1 -CurrentTag $env:RELEASE_TAG -TargetRef $env:GITHUB_SHA -OutputPath artifacts/release-notes.md
+        run: |
+          ./.github/scripts/Generate-ReleaseNotes.ps1 -CurrentTag $env:RELEASE_TAG -TargetRef $env:GITHUB_SHA -OutputPath artifacts/release-notes.md
+          $install = @(
+            '', '## Install',
+            '- **Recommended:** download `D2RReimagined.LevelEditor-win-Setup.exe` and run it. The editor then checks for updates on launch and installs them with one click.',
+            '- **Portable with updates:** `D2RReimagined.LevelEditor-win-Portable.zip` — extract anywhere; updates work the same way.',
+            '- **Plain portable:** `Reimagined-Level-Editor-*-win-x64.zip` — no automatic updates.'
+          )
+          Add-Content -Path artifacts/release-notes.md -Value ($install -join [Environment]::NewLine)
 
       - uses: actions/upload-artifact@v7
         with:
