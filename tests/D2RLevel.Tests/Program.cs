@@ -289,6 +289,7 @@ void Throws(Action action, string name)
 try
 {
     var source = Path.Combine(folder, "source.json");
+    CompanionChecks.Run(folder, Check, Throws);
     CollisionChecks.Run(folder, Check, Throws);
     GameplayChecks.Run(folder, Check, Throws);
     LinkChecks.Run(folder, Check, Throws);

@@ -19,8 +19,8 @@ public partial class MainWindow
         var map = pairedScene?.Collision?.Document ?? throw new InvalidOperationException(L.T("Open a paired scene to edit entrances and exits."));
         var links = placementLinks ?? throw new InvalidOperationException(L.T("Load the paired gameplay data first."));
         string? root = PresetPairing.Split(current.SourcePath, "hd/env/preset")?.DataRoot;
-        bool canSave = workspaceSession is not null && root is not null && resolver is not null && !Path.GetFullPath(root).Equals(Path.GetFullPath(resolver.DataRoot), StringComparison.OrdinalIgnoreCase);
-        string? warning = links.Warning;
+        bool canSave = StudioTableContext.Project is null && workspaceSession is not null && root is not null && resolver is not null && !Path.GetFullPath(root).Equals(Path.GetFullPath(resolver.DataRoot), StringComparison.OrdinalIgnoreCase);
+        string? warning = links.Warning ?? (StudioTableContext.Project != null ? "Connection table edits belong to Mod Studio. Use Level properties to open a Vis/Warp cell in Studio." : null);
         if (canSave && connectionEdits is null)
         {
             var table = new GameDataTables(resolver, root).Read("levels");

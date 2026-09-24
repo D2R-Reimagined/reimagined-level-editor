@@ -599,5 +599,18 @@
   "Version {0} is available. Use the Download button in the toolbar to install it.": "",
   "Version {0} is ready. Restart the editor to install it?": "",
   "Wait for the current load to finish, then restart to install the update.": "",
-  "You are running the latest version ({0}).": ""
+  "You are running the latest version ({0}).": "",
+  "Browse…": "",
+  "Companion applications · Mod Studio": "",
+  "Companion applications…": "",
+  "Edit level in Mod Studio": "",
+  "Edit preset in Mod Studio": "",
+  "Link Mod Studio project…": "",
+  "Mod Studio": "",
+  "Open Mod Studio": "",
+  "Reset to automatic": "",
+  "Save": "",
+  "Select Mod Studio application": "",
+  "Select the Mod Studio project root": "",
+  "Test connection": ""
 }

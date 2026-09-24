@@ -19,6 +19,8 @@ public partial class MainWindow
     {
         var dialog = new OpenFolderDialog { Title = L.T("Select mod data directory (containing hd/env/preset and global/tiles)"), InitialDirectory = workspaceFolder ?? "" };
         if (dialog.ShowDialog(this) != true) return;
+        if (!CanReplace()) return;
+        DisconnectStudio();
         try { await LoadWorkspace(dialog.FolderName); } catch (Exception ex) { Error(ex); }
     }
     private async Task LoadWorkspace(string folder)
@@ -34,6 +36,7 @@ public partial class MainWindow
             if (closeAfterCancel) { closeAfterCancel = false; Close(); }
         }
         if (!CanReplace()) return;
+        Program.Integration?.ClaimProject(StudioTableContext.Project?.Root ?? folder);
         workspaceFolder = Path.GetFullPath(folder); workspaceScenes = scenes;
         settings = settings with { WorkspaceFolder = workspaceFolder,
             RecentWorkspaces = new[] { workspaceFolder }.Concat(settings.RecentWorkspaces ?? []).Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToArray() };
@@ -126,7 +129,8 @@ public partial class MainWindow
     private async Task OpenWorkspaceScene(WorkspaceScene scene)
     {
         if (resolver is null) { Status.Text = L.T("Choose the asset folder first. It can be outside the workspace."); return; }
-        openingWorkspaceSession = new(workspaceFolder!, scene);
+        StudioTableContext.LogicalMap = scene.LogicalMap ?? (PresetPairing.Split(scene.Ds1Path, "global/tiles") is { } location ? "global/tiles/" + location.Relative.Replace('\\', '/') : null);
+        openingWorkspaceSession = new(StudioTableContext.Project?.Root ?? workspaceFolder!, scene);
         try
         {
             await LoadPreset(scene.JsonPath);

@@ -28,7 +28,7 @@ public sealed class GameDataTables(AssetResolver? assets, string? workspaceDataR
             string? fallback = assets?.Resolve($"data/global/excel/{name}.txt");
             string? local = workspaceDataRoot is null ? null : Path.GetFullPath(Path.Combine(workspaceDataRoot, "global", "excel", name + ".txt"));
             isOverride = local is not null && File.Exists(local) && !string.Equals(local, fallback, StringComparison.OrdinalIgnoreCase);
-            source = local is not null && File.Exists(local) ? local : fallback;
+            source = StudioTableContext.Resolve(name) ?? (local is not null && File.Exists(local) ? local : fallback);
             if (source is null || !File.Exists(source))
                 return tables[name] = new(name, source, isOverride, [], "Table unavailable.");
             var lines = File.ReadAllLines(source);

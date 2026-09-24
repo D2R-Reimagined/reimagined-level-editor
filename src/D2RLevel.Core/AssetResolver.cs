@@ -20,7 +20,7 @@ public sealed class AssetResolver
         var full = Path.GetFullPath(Path.Combine(DataRoot, path[5..]));
         if (!full.StartsWith(DataRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Asset path escapes the extraction directory.");
-        return full;
+        return StudioTableContext.ResolveAsset(path[5..]) ?? full;
     }
     public string ExtractionPath(string path)
     {

@@ -1,6 +1,6 @@
 namespace D2RLevel.Core;
 
-public sealed record WorkspaceScene(string Name, string JsonPath, string Ds1Path);
+public sealed record WorkspaceScene(string Name, string JsonPath, string Ds1Path, string? LogicalMap = null);
 
 public static class SceneWorkspace
 {
@@ -18,6 +18,7 @@ public static class SceneWorkspace
     {
         token.ThrowIfCancellationRequested();
         root = Path.GetFullPath(root);
+        if (StudioTableContext.WorkspaceScenes(root) is { } linkedScenes) return linkedScenes;
         string presets = Path.Combine(root, "hd", "env", "preset");
         if (!Directory.Exists(root)) throw new DirectoryNotFoundException("Choose an existing workspace directory.");
         if (!Directory.Exists(presets)) return [];

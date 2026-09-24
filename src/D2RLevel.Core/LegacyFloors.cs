@@ -146,6 +146,7 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
         var overrideRoot = contextDataRoot ?? PresetPairing.Split(ds1Path, "global/tiles")?.DataRoot;
         string Resolve(string path)
         {
+            if (StudioTableContext.ResolveAsset(path[5..]) is { } linked) return linked;
             var fallback = resolver.Resolve(path); // Validate table-provided paths before trying the mod.
             if (overrideRoot is not null)
             {
@@ -208,7 +209,7 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
     {
         string relative;
         // A map outside the extraction, or one whose name is ambiguous, simply has no row.
-        try { relative = normalize(PresetPairing.RelativeDs1(ds1Path, resolver)); } catch (InvalidDataException) { return null; }
+        try { relative = normalize(StudioTableContext.LogicalMap is { } logical ? logical[13..] : PresetPairing.RelativeDs1(ds1Path, resolver)); } catch (InvalidDataException) { return null; }
         var matches = Table(resolve("data/global/excel/lvlprest.txt"))
             .Where(r => Enumerable.Range(1, 6).Any(i => r.TryGetValue($"File{i}", out var f) && normalize(f) == relative)).ToArray();
         return matches.Length == 1 && matches[0].GetValueOrDefault("LevelId") is { } id && id != "0" && id.Length > 0 ? matches[0] : null;

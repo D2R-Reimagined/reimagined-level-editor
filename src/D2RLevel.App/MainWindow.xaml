@@ -34,6 +34,11 @@
               <Separator Style="{StaticResource MenuSeparator}"/>
               <MenuItem x:Name="LanguageMenu" Header="{l:T 'Language'}" ToolTip="{l:T 'Translations live in the lang folder next to the editor. The change applies after a restart.'}"/>
             </MenuItem>
+            <MenuItem Header="{l:T 'Mod Studio'}">
+              <MenuItem Header="{l:T 'Open Mod Studio'}" Click="OpenStudio_Click"/>
+              <MenuItem Header="{l:T 'Link Mod Studio project…'}" Click="LinkStudioProject_Click"/>
+              <MenuItem Header="{l:T 'Companion applications…'}" Click="CompanionSettings_Click"/>
+            </MenuItem>
             <MenuItem Header="{l:T '_Assets'}">
               <MenuItem Header="{l:T 'Asset folder…'}" Click="Root_Click"/>
               <MenuItem Header="{l:T 'Reload assets'}" Click="Reload_Click"/>
@@ -48,6 +53,7 @@
             <Button x:Name="UpdateButton" Content="{l:T 'Check for updates'}" Click="Update_Click" Margin="18,3,3,3"/>
         </WrapPanel>
         <TextBlock x:Name="PathLabel" Text="{l:T 'Open an extracted HD preset JSON to begin.'}" Foreground="#9AAFC4" Margin="4,8,4,0" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="CompanionStatus" Foreground="#8BD2D4" Margin="4,3" TextWrapping="Wrap"/>
         <TextBlock x:Name="DecoderNotice" Text="{l:T 'Model decoder unavailable — restore Native/granny2.dll from the application package and restart.'}" Foreground="#FFD28A" Margin="4,6,4,0" TextWrapping="Wrap"/>
       </StackPanel>
     </Border>

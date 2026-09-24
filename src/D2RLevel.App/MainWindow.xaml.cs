@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -53,6 +53,7 @@ public partial class MainWindow : Window
         Scene.DuplicationCommitted += DuplicateAlongAxis;
         Closing += OnClosing;
         PreviewKeyDown += OnKey;
+        InitializeCompanion();
         Loaded += async (_, _) => await Startup();
         LevelDetails.RefreshRequested += async () => await RefreshLevelProperties();
         RefreshState();
@@ -90,6 +91,14 @@ public partial class MainWindow : Window
             }
             if ((resolver is not null || decoderLoaded) && SaveSettings() is { } saveWarning) notices.Add(saveWarning);
             RefreshState();
+            if (Program.Integration?.Initial != null)
+            {
+                await Program.Integration.StartAsync(DispatchCompanion);
+                return;
+            }
+            if (settings.StudioProjectRoot != null) StudioTableContext.Project = FindStudioProject();
+            if (Program.Integration != null) await Program.Integration.StartAsync(DispatchCompanion);
+            if (Argument("--integration-ui-smoke") is { } integrationOutput) { Directory.CreateDirectory(integrationOutput); File.WriteAllText(Path.Combine(integrationOutput, "level-ready.txt"), "ready"); }
             if (Argument("--preset") is { } path) await LoadPreset(path);
             else if (settings.WorkspaceFolder is { Length: > 0 } workspace)
             {
@@ -354,6 +363,7 @@ public partial class MainWindow : Window
     {
         var dialog = new OpenFileDialog { Filter = "D2R preset JSON|*.json", Title = L.T("Open extracted HD preset") };
         if (dialog.ShowDialog(this) != true || !CanReplace()) return;
+        DisconnectStudio();
         try { await LoadPreset(dialog.FileName); } catch (Exception ex) { Error(ex); }
     }
     private async void Root_Click(object sender, RoutedEventArgs e)

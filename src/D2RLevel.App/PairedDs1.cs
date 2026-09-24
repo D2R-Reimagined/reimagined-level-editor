@@ -10,6 +10,13 @@ public partial class MainWindow
         if (assets is null) return (null, "DS1 unavailable: choose an asset folder to resolve the matching map and tiles.");
         try
         {
+            if (openingWorkspaceSession?.Scene is { } workspaceScene && string.Equals(workspaceScene.JsonPath, preset.SourcePath, StringComparison.OrdinalIgnoreCase))
+            {
+                var authoredProject = LevelProject.ForPreset(preset.SourcePath);
+                var workspaceMap = await Task.Run(() => LegacyFloorScene.Load(workspaceScene.Ds1Path, assets, token, StudioTableContext.Project is { } linked ? Path.Combine(linked.Root, "data") : null, authoredProject?.Tileset), token);
+                authoredProject?.VerifyMap(workspaceMap.Collision!.Document);
+                return (workspaceMap, "DS1: " + Path.GetFileName(workspaceScene.Ds1Path) + " · workspace scene");
+            }
             if (LevelProject.ForPreset(preset.SourcePath) is { } project)
             {
                 var root = PresetPairing.Split(preset.SourcePath, "hd/env/preset")!.Value.DataRoot;
@@ -17,11 +24,6 @@ public partial class MainWindow
                 var authored = await Task.Run(() => LegacyFloorScene.Load(mapPath, assets, token, root, project.Tileset), token);
                 project.VerifyMap(authored.Collision!.Document);
                 return (authored, "DS1: " + project.Name + " · authored layout · HD scaffold retained");
-            }
-            if (openingWorkspaceSession?.Scene is { } workspaceScene && string.Equals(workspaceScene.JsonPath, preset.SourcePath, StringComparison.OrdinalIgnoreCase))
-            {
-                var workspaceMap = await Task.Run(() => LegacyFloorScene.Load(workspaceScene.Ds1Path, assets, token), token);
-                return (workspaceMap, "DS1: " + Path.GetFileName(workspaceScene.Ds1Path) + " · workspace scene");
             }
             if (PlacementLinks.LinkedDs1Path(preset.SourcePath) is { } linkedPath)
             {

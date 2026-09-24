@@ -4,7 +4,7 @@ namespace D2RLevel.Core;
 
 public sealed record EditorWindowPlacement(double Left, double Top, double Width, double Height, bool Maximized);
 
-public sealed record EditorSettings(string? AssetFolder = null, string? GrannyPath = null, Dictionary<string, string>? PresetPairs = null, EditorWindowPlacement? WindowPlacement = null, string? WorkspaceFolder = null, string[]? RecentWorkspaces = null, string? Language = null)
+public sealed record EditorSettings(string? AssetFolder = null, string? GrannyPath = null, Dictionary<string, string>? PresetPairs = null, EditorWindowPlacement? WindowPlacement = null, string? WorkspaceFolder = null, string[]? RecentWorkspaces = null, string? Language = null, string? StudioProjectRoot = null, string? StudioProfile = null, string? StudioProjectId = null)
 {
     public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "D2RLevelEditor", "settings.json");

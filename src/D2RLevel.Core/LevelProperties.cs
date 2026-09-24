@@ -21,10 +21,11 @@ public sealed record LevelProperties(string? MapPath, IReadOnlyList<LevelPresetC
         catch (Exception ex) when (ex is IOException or InvalidDataException or System.Text.Json.JsonException or UnauthorizedAccessException)
         { return new(mapPath, [], [], "Project context could not be read: " + ex.Message, null); }
         // Do not infer an area from a filename alone: standalone copies can share base map names.
-        if (mapPath is null || PresetPairing.Split(mapPath, "global/tiles") is not { } location)
+        var relativeMap = StudioTableContext.LogicalMap is { } linkedMap ? linkedMap["global/tiles/".Length..] : mapPath is null ? null : PresetPairing.Split(mapPath, "global/tiles")?.Relative;
+        if (mapPath is null || relativeMap is null)
             return new(mapPath, [], [], "No paired DS1 with a game-relative path. Open a scene paired with a map under global/tiles.", projectName);
         var presets = tables.Read("lvlprest");
-        string relative = Normalize(location.Relative);
+        string relative = Normalize(relativeMap);
         var matches = presets.Rows.Where(row => Enumerable.Range(1, 6).Any(i => Normalize(row[$"File{i}"]) == relative)).ToArray();
         var contexts = new List<LevelPresetContext>();
         foreach (var preset in matches)

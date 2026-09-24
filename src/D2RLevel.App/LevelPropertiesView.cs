@@ -16,6 +16,7 @@ public sealed class LevelPropertiesView : DockPanel
     private readonly TextBlock notice = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGoldenrodYellow, Margin = new(0, 4, 0, 8) };
     private LevelProperties? snapshot;
     public event Action? RefreshRequested;
+    public event Action<string, GameDataRow, string>? StudioRequested;
     internal int ContextCount => contexts.Items.Count;
     internal string DetailsText => string.Join("\n", renderedText);
     internal void SelectDifficulty(int index) => difficulty.SelectedIndex = index;
@@ -63,8 +64,23 @@ public sealed class LevelPropertiesView : DockPanel
         {
             if (context.Warning is not null) Add(L.T("Context notice"), context.Warning, fullWidth: true);
             var preset = context.Preset;
+            var editPreset = new Button { Content = L.T("Edit preset in Mod Studio") };
+            editPreset.Click += (_, _) => StudioRequested?.Invoke("lvlprest", preset, "Def"); details.Children.Add(editPreset);
             if (context.Level is { } level)
             {
+                var editLevel = new Button { Content = L.T("Edit level in Mod Studio") };
+                editLevel.Click += (_, _) => StudioRequested?.Invoke("levels", level, "Id"); details.Children.Add(editLevel);
+                var connections = new WrapPanel();
+                for (int slot = 0; slot < 8; slot++)
+                {
+                    foreach (var prefix in new[] { "Vis", "Warp" })
+                    {
+                        string column = prefix + slot;
+                        var edit = new Button { Content = column, ToolTip = "Edit " + column + " in Mod Studio" };
+                        edit.Click += (_, _) => StudioRequested?.Invoke("levels", level, column); connections.Children.Add(edit);
+                    }
+                }
+                details.Children.Add(connections);
                 Heading(L.T("Area"));
                 Field(level, "Name", L.T("Area record"));
                 Field(level, "*StringName", L.T("Display name comment"));
