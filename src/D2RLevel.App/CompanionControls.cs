@@ -114,6 +114,7 @@ public partial class MainWindow
             for (var dir = new DirectoryInfo(workspaceFolder ?? Path.GetDirectoryName(document?.SourcePath ?? "") ?? Environment.CurrentDirectory); dir != null; dir = dir.Parent)
                 if (File.Exists(Path.Combine(dir.FullName, "mod-project.json"))) { root = dir.FullName; break; }
         }
+        root ??= StudioRecentProject();
         if (root == null || !Directory.Exists(root)) return null;
         string? id = settings.StudioProjectId;
         if (File.Exists(Path.Combine(root, "mod-project.json")))
@@ -122,6 +123,33 @@ public partial class MainWindow
         string profile = settings.StudioProfile ?? "standard";
         var pointer = Path.Combine(root, ".studio/integration", profile, "current.json");
         return new(id, root, profile, resolver?.DataRoot, File.Exists(pointer) ? pointer : null);
+    }
+    /// <summary>The project Mod Studio last opened, else the only project in its projects folder, so an unlinked workspace needs no folder picker.</summary>
+    private static string? StudioRecentProject()
+    {
+        static bool IsProject(string? dir) => dir is { Length: > 0 } && File.Exists(Path.Combine(dir, "mod-project.json"));
+        try
+        {
+            var file = Environment.GetEnvironmentVariable("MOD_STUDIO_PREFERENCES") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ReimaginedD2RModStudio", "preferences.json");
+            if (!File.Exists(file)) return null;
+            using var json = JsonDocument.Parse(File.ReadAllText(file));
+            string? Text(string name) => json.RootElement.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+            if (Text("LastProject") is { } last && IsProject(last)) return last;
+            var folder = Text("ResolvedProjectsFolder");
+            var projects = Directory.Exists(folder) ? Directory.GetDirectories(folder).Where(IsProject).ToArray() : [];
+            return projects.Length == 1 ? projects[0] : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { return null; }
+    }
+    private EditorInstallation ResolveStudio()
+    {
+        try { return CompanionApps.Resolve(CompanionApps.Studio); }
+        catch (Exception ex) when (ex is FileNotFoundException or InvalidOperationException)
+        {
+            // Mirrors Studio: an undetected or ambiguous install opens the chooser instead of failing.
+            CompanionSettings_Click(this, new());
+            return CompanionApps.Resolve(CompanionApps.Studio);
+        }
     }
     private async Task OpenStudioRecord(string table, GameDataRow row, string column)
     {
@@ -132,7 +160,7 @@ public partial class MainWindow
             if (project == null) return;
             string key = table == "lvlprest" ? "Def" : "Id";
             var target = new EditorTarget(Table: table, KeyColumn: key, KeyValue: row[key], SourceId: StudioTableContext.SourceId(table, row), Column: column);
-            var reply = await CompanionApps.SendAsync(CompanionApps.Resolve(CompanionApps.Studio), new("open-table-record", project, target));
+            var reply = await CompanionApps.SendAsync(ResolveStudio(), new("open-table-record", project, target));
             Status.Text = reply.Success ? "Opened " + table + " · " + column + " in Mod Studio" : reply.Message;
         }
         catch (Exception ex) { Error(ex); }
@@ -141,7 +169,7 @@ public partial class MainWindow
     {
         try
         {
-            var reply = await CompanionApps.SendAsync(CompanionApps.Resolve(CompanionApps.Studio), new("activate", FindStudioProject()));
+            var reply = await CompanionApps.SendAsync(ResolveStudio(), new("activate", FindStudioProject()));
             Status.Text = reply.Success ? "Opened Mod Studio" : reply.Message;
         }
         catch (Exception ex) { Error(ex); }
