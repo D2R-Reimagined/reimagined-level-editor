@@ -19,7 +19,9 @@ public sealed class EditHistory
         if (transaction is not null) { transaction.Add(edit); return; }
         undo.Push(edit); redo.Clear(); Version++; Changed?.Invoke(subject);
     }
-    public void Transaction(Action action, object? subject = null)
+    public void Transaction(Action action, object? subject = null) => Transaction(action, () => subject);
+    /// <summary>A transaction whose subject is only known once the action has run, such as models it creates.</summary>
+    public void Transaction(Action action, Func<object?> subject)
     {
         if (transaction is not null) { action(); return; }
         var edits = transaction = [];
@@ -31,7 +33,7 @@ public sealed class EditHistory
         }
         finally { transaction = null; }
         if (edits.Count > 0) Record(() => { for (int i = edits.Count - 1; i >= 0; i--) edits[i].Undo(); },
-            () => { foreach (var edit in edits) edit.Redo(); }, subject);
+            () => { foreach (var edit in edits) edit.Redo(); }, subject());
     }
     public object? Undo()
     {

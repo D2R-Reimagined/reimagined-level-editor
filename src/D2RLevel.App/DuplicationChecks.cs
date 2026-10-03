@@ -68,5 +68,27 @@ internal static partial class RenderingChecks
         Check(!view.BeginDrag(entity, new(600, 450), MovementAxis.X, true), "missing model bounds cannot define repeat spacing");
         view.SetScene(new(items, [], 1)); view.Select(entity);
         Check(!view.BeginDrag(entity, new(600, 450), null, true), "Alt duplication requires an axis");
+
+        // DS1 units (NPCs, monsters, critters) repeat on whole subtiles, even when shown as a marker.
+        var unit = PresetEntity.GameplayPreview(3, "cow", new(new(8, 0, 8), new(0, 0, 0, 1), new(1, 1, 1)));
+        view.SetScene(new([new(unit, shape, true)], [], 0)); view.Select(unit); view.FrameSelected(); view.Dolly(-30);
+        var unitCenter = new Point3D(8, 1.5, 8);
+        Check(!view.BeginDrag(unit, view.Project(unitCenter)!.Value, MovementAxis.X, true), "unit copies need the subtile grid");
+        view.UnitSubtileSize = () => 0.8;
+        Check(!view.BeginDrag(unit, view.Project(unitCenter)!.Value, MovementAxis.Y, true), "unit copies stay on the ground");
+        foreach (var axis in new[] { MovementAxis.X, MovementAxis.Z })
+        {
+            var direction = axis == MovementAxis.X ? new Vector3D(1, 0, 0) : new Vector3D(0, 0, 1);
+            int previous = commits;
+            Check(view.BeginDrag(unit, view.Project(unitCenter)!.Value, axis, true), "unit starts on " + axis);
+            // The 2-unit marker is 2.5 subtiles wide, so copies step a whole 3 subtiles.
+            Check(Math.Abs(view.DuplicateSpacing - 2.4) < 1e-9, "unit spacing rounds up to whole subtiles");
+            view.ContinueDrag(view.Project(unitCenter + direction * (2.4 * 2.2))!.Value);
+            Check(view.DuplicatePreviewCount == 2, "unit row previews two copies");
+            view.EndDrag(true);
+            var expected = direction * 2.4;
+            Check(commits == previous + 1 && committedCount == 2 && moves == 0 && Math.Abs(committedStep.X - expected.X) < 1e-9 &&
+                committedStep.Y == 0 && Math.Abs(committedStep.Z - expected.Z) < 1e-9, "unit row commits once with a subtile step");
+        }
     }
 }

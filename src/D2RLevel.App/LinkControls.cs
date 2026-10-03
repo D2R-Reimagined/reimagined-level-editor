@@ -26,6 +26,7 @@ public partial class MainWindow
     {
         if (subject is PrefabPlacement prefab) SyncPrefab(prefab);
         if (subject is ModelDuplication duplication) SyncDuplication(duplication);
+        if (subject is ModelPlacement placement) SyncPlacement(placement);
         if (subject is PresetEntity[] members) RefreshGroupMove(members);
         if (document?.History.Shared != true) return;
         try

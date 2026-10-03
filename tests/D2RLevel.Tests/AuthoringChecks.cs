@@ -44,6 +44,17 @@ internal static class AuthoringChecks
         check(ds1.Serialize().SequenceEqual(original), "structural undo retains original patrols and records");
         throws(() => links.AppendUnit(1, 7, 5, 6), "insert cannot create ambiguous patrol anchor");
         throws(() => links.DeleteUnit(1), "linked gameplay deletion requires unlink");
+        // Alt-drag unit copies arrive as one batch: one undo, and any rejected copy rejects the row.
+        check(ds1.IsPatrolAnchor(5, 6) && !ds1.IsPatrolAnchor(8, 6), "patrol anchors are reported for copy skipping");
+        var rowBefore = ds1.Serialize(); var rowMetadata = links.MetadataFor(links.SidecarPath, ds1.SourcePath);
+        var row = links.AppendUnits([ds1.Units[0] with { X = 8 }, ds1.Units[0] with { X = 11 }]);
+        check(row.SequenceEqual(new[] { 2, 3 }) && ds1.Units[3] == new Ds1Unit(3, 1, 7, 11, 6, 123) && ds1.PatrolPoints(2).Count == 0,
+            "unit row keeps type, ID and flags without copying patrols");
+        ds1.Undo();
+        check(ds1.Serialize().SequenceEqual(rowBefore) && links.MetadataFor(links.SidecarPath, ds1.SourcePath).SequenceEqual(rowMetadata), "one undo removes the whole unit row");
+        ds1.Redo(); check(ds1.Units.Count == 4, "redo restores the whole unit row"); ds1.Undo();
+        throws(() => links.AppendUnits([ds1.Units[0] with { X = 8 }, ds1.Units[0] with { X = 20 }]), "out-of-map copy rejects the row");
+        check(ds1.Serialize().SequenceEqual(rowBefore), "rejected unit row leaves no partial copies");
         links.PaintFloor(0, [(0, 0)], b);
         check(links.MetadataFor(links.SidecarPath, ds1.SourcePath).Length > 0 && links.BrokenLinkCount == 0, "floor paint preserves unrelated links");
         ds1.Undo(); check(ds1.Serialize().SequenceEqual(original), "paired floor undo restores bytes");

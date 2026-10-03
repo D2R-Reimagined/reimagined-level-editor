@@ -7,7 +7,8 @@
           <TextBlock Text="REIMAGINED" FontWeight="Bold" FontSize="18" VerticalAlignment="Center" Margin="4,0,18,0"/>
           <Menu Background="Transparent" Foreground="#E6EDF4" VerticalAlignment="Center">
             <MenuItem Header="{l:T '_File'}">
-              <MenuItem Header="{l:T 'New level from this scene…'}" Click="NewLevel_Click"/>
+              <MenuItem Header="{l:T 'New level…'}" Click="NewLevel_Click"/>
+              <MenuItem Header="{l:T 'New level from this scene…'}" Click="NewLevelFromScene_Click"/>
               <Separator Style="{StaticResource MenuSeparator}"/>
               <MenuItem Header="{l:T 'Load workspace…'}" Click="LoadWorkspace_Click"/>
               <MenuItem x:Name="WorkspaceExplorerButton" Header="{l:T 'Workspace Explorer'}" Click="WorkspaceExplorer_Click" IsEnabled="False"/>
@@ -16,7 +17,9 @@
               <MenuItem x:Name="SaveCopyButton" Header="{l:T 'Save copy…'}" Click="Save_Click"/>
             </MenuItem>
             <MenuItem Header="{l:T '_Create'}">
-              <MenuItem Header="{l:T 'New level from this scene…'}" Click="NewLevel_Click"/>
+              <MenuItem Header="{l:T 'New level…'}" Click="NewLevel_Click"/>
+              <MenuItem Header="{l:T 'New level from this scene…'}" Click="NewLevelFromScene_Click"/>
+              <MenuItem Header="{l:T 'Tileset palette…'}" Click="TilesetPalette_Click"/>
               <MenuItem Header="{l:T 'Place model…'}" Click="Models_Click"/>
               <MenuItem Header="{l:T 'Gameplay assets…'}" Click="GameplayAssets_Click"/>
               <MenuItem Header="{l:T 'Entrances and exits…'}" Click="Entrances_Click"/>
@@ -50,6 +53,7 @@
             <Button x:Name="SaveSceneButton" Content="{l:T 'Save Scene'}" Click="SaveScene_Click" IsEnabled="False"/>
             <Button x:Name="UndoButton" Content="{l:T 'Undo'}" Click="Undo_Click"/><Button x:Name="RedoButton" Content="{l:T 'Redo'}" Click="Redo_Click"/>
             <Button Content="{l:T 'Ground / gameplay…'}" Click="Floors_Click"/>
+            <Button Content="{l:T 'Tileset palette…'}" Click="TilesetPalette_Click" ToolTip="{l:T 'Paint models from the level tileset into the scene.'}"/>
             <Button x:Name="UpdateButton" Content="{l:T 'Check for updates'}" Click="Update_Click" Margin="18,3,3,3"/>
         </WrapPanel>
         <TextBlock x:Name="PathLabel" Text="{l:T 'Open an extracted HD preset JSON to begin.'}" Foreground="#9AAFC4" Margin="4,8,4,0" TextTrimming="CharacterEllipsis"/>

@@ -5,6 +5,9 @@ A Windows level editor for Diablo II: Resurrected, built with C# and .NET 10. Ed
 ## Features
 
 - New level projects with a retained terrain/environment scaffold, fresh DS1 gameplay, explicit tilesets and optional retained scenery.
+- A New level wizard that asks for the act and tileset first, then lists that tileset's layouts to start from.
+- A tileset palette that paints the tileset's HD models in snapped rows, optionally claiming DS1 collision so outlines block movement.
+- Exit placement help: add hidden exits for unused slots and get ranked spots where the warp lands players on open ground.
 - Ground tile palette with pencil, erase, picker, fill and rectangle tools; whole-stroke undo and protected linked footprints.
 - Insert template gameplay units, delete unlinked units and create their first patrol; structural edits preserve other links.
 - Compact File, Create, View and Assets menus, with Save and Undo/Redo kept on the toolbar.
@@ -80,14 +83,19 @@ When several preset rows reference a DS1, choose a context explicitly. Reusable 
 
 ## Create a level
 
-1. Choose **Assets → Asset folder**. Open a fixed paired scene, or use **New level** and select a template when prompted.
-2. Choose **New level**, enter a project name and starting floor, and choose whether to keep existing scenery. The initial size matches the template terrain. Empty ground is allowed.
+1. Choose **Assets → Asset folder**, then **New level…**. Pick the **act** and the **tileset** (a `lvltypes.txt` row such as *Act 1 - Cave*). The wizard lists every layout of that tileset that has a paired HD preset: level presets first, then the generator rooms stored in the tileset's folders. Pick one as the starting size and HD terrain. **Browse for a preset file instead…** keeps the old route, and **New level from this scene…** uses the open scene as the template.
+2. Enter a project name and starting floor, and choose whether to keep existing scenery. The template loads with the tileset you chose, and the project stores it with the level type. The starting floor defaults to the template's most common ground tile; empty ground is allowed.
 3. Choose a parent folder. The editor creates a new folder containing a `data` workspace; it never replaces an existing project folder. Terrain, environment and unknown components remain; known standalone scenery is cleared by default. Hierarchies are preserved intact.
 4. Open **Ground / gameplay**. Choose **Paint floor**, **Erase floor**, **Pick floor**, **Fill floor** or **Rectangle floor**, select a tile/layer and draw. Pencil/erase support brush sizes. Release commits one stroke; Escape or lost capture cancels. Palette thumbnails show the first available tile variant.
-5. Use **Create → Place model** for scenery, **Create → Gameplay assets** for named gameplay entries, or **Place template** in the gameplay window for a template record. Template choices preserve their type, ID and flags. **Delete unit** refuses linked units; delete the linked HD object or unlink first.
-6. **Save Scene** writes the pair and links. Reopen through Load Workspace or Open preset; `.rle-project.json` supplies the explicit tileset and project name without requiring filename-based table inference.
+5. The **Tileset palette** opens after creation; it is also on the toolbar and under **Create**. It lists the HD models from the tileset's folders (`hd/env/model/act1/caves` for *Act 1 - Cave*), grouped by kind, plus models the scene already uses. Choose one and **Paint in viewport**:
+   - Click places a piece; drag lays a straight row along X or Z, one piece per model width.
+   - With **Snap** on (tile, half tile or subtile), pieces land on the DS1 grid and rows step in whole grid units. **R** or the turn buttons rotate 90°. **Esc** stops painting.
+   - Each stroke is one undo step. **Block movement under painted pieces** also gives each piece an owned DS1 footprint over its bounds, so walls you outline stop players and monsters. Undo removes both.
+6. Use **Create → Place model** for other scenery, **Create → Gameplay assets** for named gameplay entries, or **Place template** in the gameplay window for a template record. Template choices preserve their type, ID and flags. **Delete unit** refuses linked units; delete the linked HD object or unlink first.
+7. Open **Create → Entrances and exits…**, select a slot (each row shows its `Vis` destination), and use **Suggest spots** or **Place new exit** to add a hidden exit. See [entrances and exits](docs/entrances-and-exits.md).
+8. **Save Scene** writes the pair and links. Reopen through Load Workspace or Open preset; `.rle-project.json` supplies the explicit tileset and project name without requiring filename-based table inference.
 
-New projects contain fresh floor/gameplay data and **no walls or entrances**. They retain the template's game-relative filenames and do not register a new area ID. The copied DT1 files, palette and available gameplay tables preserve the template context; HD overrides referenced by the preset are carried when creating from a mod. Other game assets still come from your extracted asset folder. Keep project files together.
+New projects start with fresh floor/gameplay data and **no DS1 walls or entrances**. Painted pieces are HD scenery; they block movement only through the owned footprints described above. They retain the template's game-relative filenames and do not register a new area ID. The copied DT1 files, palette and available gameplay tables preserve the template context; HD overrides referenced by the preset are carried when creating from a mod. Other game assets still come from your extracted asset folder. Keep project files together.
 
 Ground tools change DS1 tiles and collision. They do not sculpt the HD mesh or reproduce the game's biome shader. The DS1 window and inspector read edits immediately; reloading assets refreshes the approximate terrain projection where available. Do not install a blank project over a working map expecting its entrances to remain. Entry/exit authoring and in-game validation are still required before a project is playable. See the [authoring plan and execution status](docs/new-level-authoring-plan.md).
 
@@ -113,6 +121,7 @@ Enter whole **Subtile X / Y** coordinates and choose **Place gameplay unit**. On
 | Move model | Left-drag (terrain must be unlocked) |
 | Move along one axis | Drag the selection gizmo: red X, green Y, blue Z |
 | Fill an axis with copies | Hold Alt before dragging a gizmo arrow |
+| Paint tileset pieces | **Tileset palette → Paint in viewport**, then click or drag; R turns 90°, Esc stops |
 | Box select | Left-drag empty space; Shift-drag adds, Ctrl-drag toggles |
 | Cancel drag | Esc |
 | Frame selection / whole scene | F / Home |
@@ -125,6 +134,8 @@ The DS1 viewer also supports middle-drag panning. Home restores the HD camera's 
 Selected editable objects show a movement gizmo at their center. Drag an arrow to move along its world axis; the other two coordinates stay fixed. Arrows also move selected groups together. Release to commit one undoable move, or press Esc to cancel. DS1 NPCs show X/Z arrows only because their positions have no editable height. An axis viewed directly end-on is hidden; orbit slightly to use it.
 
 **Alt + arrow drag** repeats the selected HD model along that axis while leaving the original in place. Each full model-width of travel adds another preview copy; dragging back removes copies, and dragging the opposite way fills the negative axis. Spacing uses the displayed model's bounds after rotation and scale, or the combined bounds of a selection. Release places the row as one undoable edit and selects its last copy; Esc or lost mouse capture cancels it. Copies retain the HD entity's components with new names and IDs. DS1 units, collision links and saved groups are not copied. Missing-model markers, terrain and parented objects cannot be repeated. Each drag is limited to 256 new models.
+
+The same gesture repeats a **DS1 NPC, monster or critter** (for example cows) along X or Z. These are DS1 placements rather than HD models, so each copy is a new DS1 unit with the source's type, ID and flags. Spacing is the unit's displayed width rounded up to whole subtiles, so every copy lands exactly on the gameplay grid. Patrol routes are not copied. Copies that would leave the map or land on a patrol anchor are skipped and reported. The row is one undoable edit. A unit linked to an HD model is repeated by Alt-dragging that model instead. Use **Save Scene** or **Save linked pair** to keep the copies.
 
 **Lock terrain** is on by default. Locked terrain is not a click target in the viewport, so clicks pass through it to the props standing on it, and neither dragging nor the inspector's transform fields can move it. It stays visible and can still be selected from the entity list to inspect. Untick it to move terrain deliberately. The setting is per session, so every launch starts with terrain protected; **Terrain** remains a separate visibility toggle.
 

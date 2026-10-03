@@ -300,6 +300,7 @@ try
     LevelPropertiesChecks.Run(folder, Check, Throws);
     GameplayCatalogChecks.Run(folder, Check, Throws);
     EntranceChecks.Run(folder, Check, Throws);
+    TilesetChecks.Run(folder, Check, Throws);
     PrefabChecks.Run(folder, Check, Throws);
     DuplicationChecks.Run(folder, Check, Throws);
     LocalizationChecks.Run(folder, Check, Throws);

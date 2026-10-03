@@ -31,6 +31,18 @@ internal static class EntranceChecks
         map.History.Redo(); check(map.Serialize().SequenceEqual(moved), "exit redo restores byte-exact moved group"); map.History.Undo();
         foreach (var point in new[] { (-1, 3), (10, 3), (7, 7), (8, 8) }) throws(() => map.MoveExit(0, point.Item1, point.Item2), "exit rejects bounds, border or occupied wall destination");
         check(map.Serialize().SequenceEqual(original), "rejected exit moves are atomic");
+        check(map.ExitMoveProblem(0, 3, 2) is null && map.ExitMoveProblem(0, 2, 2) is null && map.ExitMoveProblem(0, -1, 3) is not null && map.ExitMoveProblem(0, 10, 3) is not null
+            && map.ExitMoveProblem(0, 7, 7) is not null && map.ExitMoveProblem(1, 4, 4) is not null && map.Serialize().SequenceEqual(original), "move previews report bounds, border, occupied and visible-group problems without changing bytes");
+        var slotZero = map.ExitTiles().Where(t => t.IsExit && t.Main == 0).ToArray();
+        check(Ds1CollisionDocument.Anchor(slotZero) is { X: 2, Y: 2 } && slotZero.All(t => t.Direction == "l"), "a hidden group's warp anchor is its first scan tile");
+        check(WarpGeometry.ScreenToSubtiles(16, 8) == (1, 0) && WarpGeometry.ScreenToSubtiles(-16, 8) == (0, 1) && WarpGeometry.ScreenToSubtiles(0, -16) == (-1, -1),
+            "screen pixels map to floor subtiles in the 32 × 16 projection");
+        GameDataRow Warp(string direction, string selectX) => new(new Dictionary<string, string> { ["Name"] = "Cave " + direction, ["Id"] = "4", ["Direction"] = direction, ["SelectX"] = selectX,
+            ["SelectY"] = "-120", ["SelectDX"] = "120", ["SelectDY"] = "150", ["OffsetX"] = "2", ["OffsetY"] = "5", ["ExitWalkX"] = "3", ["ExitWalkY"] = "5", ["LitVersion"] = "1", ["Tiles"] = "2", ["NoInteract"] = "0" }, "lvlwarp.txt", 2);
+        var cave = WarpGeometry.For([Warp("b", "-30"), Warp("l", "-40")], "l");
+        check(cave is { Name: "Cave l", SelectX: -40, OffsetX: 2, OffsetY: 5, ExitWalkX: 3, LitVersion: true, Tiles: 2, NoInteract: false } && WarpGeometry.For([Warp("b", "-30")], "r")?.Direction == "b"
+            && WarpGeometry.For([Warp("l", "0")], "r") is null, "an exit takes its own direction's warp, else the both-ways one");
+        check(cave!.SelectionOnFloor()[0] == (-8.75, -6.25) && cave.SelectionOnFloor()[2] == (4.375, -0.625), "the selection box's corners are projected onto the floor");
         map.Paint([(5, 5)], true); throws(() => map.MoveExit(0, 5, 5), "blocking override rejects exit relocation"); map.History.Undo();
         map.PaintFloor(0, [(5, 5)], 0); throws(() => map.MoveExit(0, 5, 5), "empty ground rejects exit relocation"); map.History.Undo();
         var separate = Map(Path.Combine(root, "separate.ds1"), (2, 2, 0, 10, true), (8, 2, 0, 10, true));
@@ -48,6 +60,34 @@ internal static class EntranceChecks
             throws(() => protectedLinks.MoveExit(0, 5, 5), "owned source or destination footprint rejects exit relocation");
             check(protectedMap.Serialize().SequenceEqual(protectedBytes), "protected exit rejection preserves map and link structure");
         }
+        // New hidden exits for unused slots, and ranked places for them.
+        var fresh = Map(Path.Combine(root, "add.ds1"), (2, 2, 0, 10, true)); var freshBytes = fresh.Serialize();
+        check(fresh.ExitAddProblem(0, 6, 6) is not null && fresh.ExitAddProblem(8, 6, 6) is not null && fresh.ExitAddProblem(3, 11, 6) is not null
+            && fresh.ExitAddProblem(3, 2, 2) is not null && fresh.ExitAddProblem(3, 6, 6) is null && fresh.Serialize().SequenceEqual(freshBytes),
+            "a new exit rejects used or invalid slots, the border and occupied cells without changing bytes");
+        fresh.AddExit(3, 6, 6, 11);
+        check(fresh.ExitTiles().Single(t => t.Main == 3) is { X: 6, Y: 6, Layer: 0, Orientation: 11, Hidden: true, Sub: 0, Raw: 0x80300081 }
+            && fresh.Walls[0].Orientations[6 * 12 + 6] == 11 && fresh.ExitMoveWarning(3) is null, "a new hidden exit uses the vanilla one-tile encoding and can then move");
+        fresh.History.Undo(); check(fresh.Serialize().SequenceEqual(freshBytes) && fresh.Walls[0].Orientations[6 * 12 + 6] == 0, "adding an exit undoes byte-exactly");
+        fresh.History.Redo(); check(fresh.ExitTiles().Any(t => t.Main == 3), "adding an exit redoes"); fresh.History.Undo();
+        throws(() => fresh.AddExit(3, 6, 6, 12), "a new exit must face l or r");
+        fresh.Paint([(6, 6)], true); throws(() => fresh.AddExit(3, 6, 6, 10), "a blocking override rejects a new exit"); fresh.History.Undo();
+        var suggestions = ExitPlacement.Suggest(fresh, null, 3, null);
+        check(suggestions.Length == 5 && suggestions.All(c => fresh.ExitAddProblem(3, c.X, c.Y) is null) && suggestions.Zip(suggestions.Skip(1)).All(p => p.First.Score >= p.Second.Score)
+            && suggestions.All(a => suggestions.All(b => a == b || Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y)) >= 3)), "exit suggestions are valid, ranked and spread apart");
+        check(suggestions[0].Openness == 1 && suggestions[0].NearestExit >= 3, "the best exit spot has open ground and room from other exits");
+        var east = ExitPlacement.Suggest(fresh, null, 3, null, (1, 0), 1)[0]; var west = ExitPlacement.Suggest(fresh, null, 3, null, (-1, 0), 1)[0];
+        check(east.X > west.X && east.Facing > 0 && west.Facing > 0, "a preferred edge pulls exit suggestions toward it");
+        var far = new WarpGeometry("Far", 4, "l", 0, 0, 0, 0, 20, 0, 0, 0, false, 0, false);
+        check(ExitPlacement.Suggest(fresh, null, 3, far, count: 50) is { Length: > 0 } landing && landing.All(c => c.X + 4 < 12), "the warp's arrival point must land on walkable ground");
+        check(ExitPlacement.Suggest(fresh, null, 0, null, count: 50).All(c => (c.X, c.Y) != (2, 2) && fresh.ExitMoveProblem(0, c.X, c.Y) is null), "move suggestions exclude the present spot and pass the move check");
+        string pairedAddJson = Path.Combine(root, "paired-add.json"); File.WriteAllText(pairedAddJson, "{\"entities\":[]}");
+        var pairedAdd = Map(Path.Combine(root, "paired-add.ds1")); var pairedAddBytes = pairedAdd.Serialize();
+        var pairedAddLinks = new PlacementLinks(PresetDocument.Load(pairedAddJson), pairedAdd); pairedAddLinks.ConnectWorkspace();
+        throws(() => pairedAdd.AddExit(1, 4, 4, 10), "paired exit additions cannot bypass link metadata");
+        pairedAddLinks.AddExit(1, 4, 4, 10);
+        check(pairedAdd.ExitTiles().Any(t => t.Main == 1) && pairedAddLinks.Warning is null, "a paired exit addition keeps link metadata valid");
+        pairedAdd.History.Undo(); check(pairedAdd.Serialize().SequenceEqual(pairedAddBytes), "a paired exit addition undoes through shared history");
         Map(Path.Combine(root, "global", "tiles", "b.ds1"), (2, 2, 0, 11, true));
         Map(Path.Combine(root, "global", "tiles", "c.ds1"), (2, 2, 0, 10, true));
         Map(Path.Combine(root, "global", "tiles", "d.ds1"), (2, 2, 0, 11, true));

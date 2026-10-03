@@ -77,12 +77,51 @@ public partial class MainWindow
                     throw new InvalidOperationException("Copy redo failed to restore geometry or data.");
                 Undo_Click(this, new());
             }
+        string unitResult = await VerifyUnitDuplication();
         // SaveCopy marks its exported state clean. All edits have now been undone;
         // restore the fixture's clean baseline so shutdown needs no discard dialog.
         doc.MarkSaved();
         File.WriteAllText(Path.Combine(output, "smoke.txt"),
             "PASS synthetic movement and duplication checks: scaled/rotated bounds, X/Y/Z, positive and negative fill, shrinking preview, cancellation, group spacing and unsupported selections.\n" +
-            "PASS real scene Alt-axis repetition: model/group copies on all axes, originals and DS1 unchanged, unique copies selected, preview cancel, one-step undo/redo, save/reopen, geometry restoration after asset reload, rendered preview and row. Programmatic WPF interaction, not OS input.\n");
+            "PASS real scene Alt-axis repetition: model/group copies on all axes, originals and DS1 unchanged, unique copies selected, preview cancel, one-step undo/redo, save/reopen, geometry restoration after asset reload, rendered preview and row. Programmatic WPF interaction, not OS input.\n" +
+            unitResult + "\n");
+
+        // A DS1 unit (NPC, monster or critter) repeats as new DS1 records on the subtile grid.
+        async Task<string> VerifyUnitDuplication()
+        {
+            if (pairedScene?.Collision?.Document is not { } map) return "SKIP unit repetition: no paired DS1.";
+            if (ShowNpcs.IsChecked != true) { ShowNpcs.IsChecked = true; RefreshNpcs(); }
+            var linked = placementLinks?.Links.Select(l => l.Unit?.Index).ToHashSet() ?? [];
+            if (npcItems.FirstOrDefault(i => !linked.Contains(i.Entity.GameplayUnitIndex)) is not { } npc) return "SKIP unit repetition: no unlinked DS1 unit.";
+            var mapBefore = map.Serialize(); int count = map.Units.Count;
+            var source = map.Units[npc.Entity.GameplayUnitIndex!.Value];
+            SetSelection([npc.Entity]); Scene.FrameSelected(); Scene.Dolly(-18);
+            var bounds = SceneViewport.Transform(npc.Entity.Transform).TransformBounds(npc.Geometry.Bounds);
+            var center = new Point3D(bounds.X + bounds.SizeX / 2, bounds.Y + bounds.SizeY / 2, bounds.Z + bounds.SizeZ / 2);
+            // Repeat toward the middle of the map so both copies fit.
+            int sign = source.X < map.Width * 5 / 2 ? 1 : -1;
+            if (!Scene.BeginDrag(npc.Entity, Scene.Project(center)!.Value, MovementAxis.X, true)) throw new InvalidOperationException("Unit Alt-drag refused.");
+            double spacing = Scene.DuplicateSpacing; int step = (int)Math.Round(spacing / (Ds1Preview.UnitsPerTile / 5));
+            Scene.ContinueDrag(Scene.Project(center + new Vector3D(sign * spacing * 2.2, 0, 0))!.Value);
+            if (Scene.DuplicatePreviewCount != 2 || !map.Serialize().SequenceEqual(mapBefore)) throw new InvalidOperationException("Unit preview changed DS1 or failed to fill intervals.");
+            await Capture("unit-preview.png");
+            Scene.EndDrag(true);
+            var units = map.Units;
+            if (units.Count != count + 2 || step < 1) throw new InvalidOperationException("Unit row did not append two DS1 records.");
+            for (int r = 1; r <= 2; r++)
+                if (units[count + r - 1] != source with { Index = count + r - 1, X = source.X + sign * step * r })
+                    throw new InvalidOperationException("Unit copies are not on whole-subtile steps with the source's type, ID and flags.");
+            if (Selected?.GameplayUnitIndex != count + 1 || npcItems.Count(i => i.Entity.GameplayUnitIndex >= count) != 2)
+                throw new InvalidOperationException("Unit copies were not previewed or the final copy was not selected.");
+            await Capture("unit-row.png");
+            var after = map.Serialize();
+            Undo_Click(this, new());
+            if (!map.Serialize().SequenceEqual(mapBefore) || npcItems.Any(i => i.Entity.GameplayUnitIndex >= count)) throw new InvalidOperationException("Unit row undo left records or previews.");
+            Redo_Click(this, new());
+            if (!map.Serialize().SequenceEqual(after)) throw new InvalidOperationException("Unit row redo failed.");
+            Undo_Click(this, new());
+            return $"PASS real DS1 unit repetition: {npc.Entity.Name} repeated twice every {step} subtiles with type, ID and flags kept, previews and selection refreshed, one-step undo/redo.";
+        }
 
         async Task Capture(string filename)
         {

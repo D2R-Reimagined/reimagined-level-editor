@@ -141,6 +141,31 @@ public sealed partial class PresetDocument
 
     public PresetEntity AddModel(string modelPath, Vector3d position, IEnumerable<string>? texturePaths = null)
     {
+        var (added, insert, remove) = PrepareModels(modelPath, [new(position, new(0, 0, 0, 1), new(1, 1, 1))], texturePaths);
+        var entity = added[0];
+        insert(); dirtyCache = null;
+        History.Record(() => { remove(); dirtyCache = null; }, () => { insert(); dirtyCache = null; }, entity);
+        return entity;
+    }
+
+    /// <summary>
+    /// Places one model at several transforms as one edit, such as a row of wall pieces drawn from a tileset.
+    /// The history subject is the returned <see cref="ModelPlacement"/>.
+    /// </summary>
+    public ModelPlacement PlaceModels(string modelPath, IReadOnlyList<EntityTransform> transforms, IEnumerable<string>? texturePaths = null)
+    {
+        if (transforms.Count is < 1 or > MaximumDuplicateModels) throw new ArgumentOutOfRangeException(nameof(transforms), "Place between 1 and 256 models at once.");
+        var (added, insert, remove) = PrepareModels(modelPath, transforms, texturePaths);
+        var result = new ModelPlacement(added);
+        insert(); dirtyCache = null;
+        History.Record(() => { remove(); dirtyCache = null; }, () => { insert(); dirtyCache = null; }, result);
+        return result;
+    }
+
+    /// <summary>New standalone entities for a model at each transform, with unique names and IDs and the model and textures
+    /// listed as dependencies, plus the actions that insert and remove them. Nothing changes until insert runs.</summary>
+    private (PresetEntity[] Added, Action Insert, Action Remove) PrepareModels(string modelPath, IReadOnlyList<EntityTransform> transforms, IEnumerable<string>? texturePaths)
+    {
         static string ValidatePath(string path, string extension)
         {
             path = path.Replace('\\', '/');
@@ -152,7 +177,7 @@ public sealed partial class PresetDocument
         }
         modelPath = ValidatePath(modelPath, ".model");
         var textures = (texturePaths ?? []).Select(p => ValidatePath(p, ".texture")).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        new EntityTransform(position, new(0, 0, 0, 1), new(1, 1, 1)).Validate();
+        foreach (var transform in transforms) transform.Validate();
         bool hadDependencies = root.ContainsKey("dependencies");
         var beforeDependencies = root["dependencies"]?.DeepClone();
         if (beforeDependencies is not null && beforeDependencies is not JsonObject)
@@ -170,31 +195,39 @@ public sealed partial class PresetDocument
         AddDependency("models", modelPath);
         foreach (var texture in textures) AddDependency("textures", texture);
         var names = entities.Select(e => e.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var basename = Path.GetFileNameWithoutExtension(modelPath); string name = basename;
-        for (int suffix = 1; names.Contains(name); suffix++) name = basename + "_" + suffix;
         var ids = entities.Select(e => e.Id).ToHashSet();
-        uint id;
-        do { id = (uint)Random.Shared.NextInt64(1, (long)uint.MaxValue + 1); } while (ids.Contains(id.ToString(CultureInfo.InvariantCulture)));
-        var data = new JsonObject { ["type"] = "Entity", ["name"] = name, ["id"] = id,
-            ["components"] = new JsonArray(
-                new JsonObject { ["type"] = "TransformDefinitionComponent", ["name"] = name + "_Transform",
-                    ["position"] = new JsonObject { ["x"] = position.X, ["y"] = position.Y, ["z"] = position.Z },
-                    ["orientation"] = new JsonObject { ["x"] = 0d, ["y"] = 0d, ["z"] = 0d, ["w"] = 1d },
-                    ["scale"] = new JsonObject { ["x"] = 1d, ["y"] = 1d, ["z"] = 1d }, ["inheritOnlyPosition"] = false },
-                new JsonObject { ["type"] = "ModelDefinitionComponent", ["name"] = name + "_Model", ["filename"] = modelPath,
-                    ["visibleLayers"] = 1, ["lightMask"] = 19, ["shadowMask"] = 3, ["ghostShadows"] = false,
-                    ["floorModel"] = false, ["terrainBlendEnableYUpBlend"] = false, ["terrainBlendMode"] = 1 }) };
-        var entity = new PresetEntity(data, nextIndex++);
+        var basename = Path.GetFileNameWithoutExtension(modelPath);
+        var added = new List<PresetEntity>();
+        foreach (var t in transforms)
+        {
+            string name = basename;
+            for (int suffix = 1; names.Contains(name); suffix++) name = basename + "_" + suffix;
+            names.Add(name);
+            uint id;
+            do { id = (uint)Random.Shared.NextInt64(1, (long)uint.MaxValue + 1); } while (!ids.Add(id.ToString(CultureInfo.InvariantCulture)));
+            var data = new JsonObject { ["type"] = "Entity", ["name"] = name, ["id"] = id,
+                ["components"] = new JsonArray(
+                    new JsonObject { ["type"] = "TransformDefinitionComponent", ["name"] = name + "_Transform",
+                        ["position"] = new JsonObject { ["x"] = t.Position.X, ["y"] = t.Position.Y, ["z"] = t.Position.Z },
+                        ["orientation"] = new JsonObject { ["x"] = t.Orientation.X, ["y"] = t.Orientation.Y, ["z"] = t.Orientation.Z, ["w"] = t.Orientation.W },
+                        ["scale"] = new JsonObject { ["x"] = t.Scale.X, ["y"] = t.Scale.Y, ["z"] = t.Scale.Z }, ["inheritOnlyPosition"] = false },
+                    new JsonObject { ["type"] = "ModelDefinitionComponent", ["name"] = name + "_Model", ["filename"] = modelPath,
+                        ["visibleLayers"] = 1, ["lightMask"] = 19, ["shadowMask"] = 3, ["ghostShadows"] = false,
+                        ["floorModel"] = false, ["terrainBlendEnableYUpBlend"] = false, ["terrainBlendMode"] = 1 }) };
+            added.Add(new PresetEntity(data, nextIndex++));
+        }
         var array = (JsonArray)root["entities"]!;
-        void Insert() { array.Add(data); entities.Add(entity); root["dependencies"] = dependencies.DeepClone(); }
+        void Insert()
+        {
+            foreach (var entity in added) { array.Add(entity.Data); entities.Add(entity); }
+            root["dependencies"] = dependencies.DeepClone();
+        }
         void Remove()
         {
-            array.Remove(data); entities.Remove(entity);
+            foreach (var entity in added) { array.Remove(entity.Data); entities.Remove(entity); }
             if (hadDependencies) root["dependencies"] = beforeDependencies?.DeepClone(); else root.Remove("dependencies");
         }
-        Insert(); dirtyCache = null;
-        History.Record(() => { Remove(); dirtyCache = null; }, () => { Insert(); dirtyCache = null; }, entity);
-        return entity;
+        return (added.ToArray(), Insert, Remove);
     }
 
     public void DeleteModel(PresetEntity entity)

@@ -233,6 +233,18 @@ public sealed partial class PlacementLinks
         }, ds1);
     }
 
+    public void AddExit(int slot, int x, int y, int orientation)
+    {
+        EnsureReady(); ValidateStructure(); Activate();
+        json.History.Transaction(() =>
+        {
+            string fingerprint = ds1.LinkFingerprint();
+            ds1.AddExitCore(slot, x, y, orientation);
+            string next = ds1.LinkFingerprint();
+            if (next != fingerprint) ChangeMetadata(Upgraded() with { Fingerprint = next }, null);
+        }, ds1);
+    }
+
     public int PaintFloor(int layer, IEnumerable<(int X, int Y)> cells, uint tile)
     {
         EnsureReady(); ValidateStructure(); Activate();
@@ -255,6 +267,23 @@ public sealed partial class PlacementLinks
             ChangeMetadata(Upgraded() with { Fingerprint = ds1.LinkFingerprint() }, null);
         });
         return index;
+    }
+
+    /// <summary>Appends several placements as one undoable edit; any rejected placement rolls back the whole batch.</summary>
+    public int[] AppendUnits(IReadOnlyList<Ds1Unit> placements)
+    {
+        EnsureReady(); ValidateStructure(); Activate();
+        var indices = new int[placements.Count];
+        json.History.Transaction(() =>
+        {
+            for (int i = 0; i < placements.Count; i++)
+            {
+                var u = placements[i];
+                indices[i] = ds1.AppendUnitCore(u.Type, u.Id, u.X, u.Y, u.Flags);
+            }
+            if (placements.Count > 0) ChangeMetadata(Upgraded() with { Fingerprint = ds1.LinkFingerprint() }, null);
+        });
+        return indices;
     }
 
     public void DeleteUnit(int index)

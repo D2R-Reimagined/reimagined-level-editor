@@ -34,7 +34,9 @@ public partial class MainWindow
             var pair = PresetPairing.Find(preset.SourcePath, assets, settings.PresetPairs);
             if (pair is null) return (null, "No matching DS1 detected. Use Open DS1… to choose and remember the matching file.");
             var overrideRoot = pair.Source == "Base asset fallback" ? PresetPairing.Split(preset.SourcePath, "hd/env/preset")?.DataRoot : null;
-            var scene = await Task.Run(() => LegacyFloorScene.Load(pair.Ds1Path, assets, token, overrideRoot), token);
+            // A New level template loads with the tileset chosen for it, not the one its own level tables give it.
+            var chosen = chosenTileset is { } c && c.Preset.Equals(preset.SourcePath, StringComparison.OrdinalIgnoreCase) ? c.Tileset : null;
+            var scene = await Task.Run(() => LegacyFloorScene.Load(pair.Ds1Path, assets, token, overrideRoot, chosen, TilesetSource.Chosen), token);
             string origin = scene.TilesetSource == TilesetSource.LevelTables ? "" : " · " + LegacyFloorWindow.TilesetOrigin(scene.TilesetSource);
             return (scene, $"DS1: {Path.GetFileName(pair.Ds1Path)} · {pair.Source}{origin}");
         }

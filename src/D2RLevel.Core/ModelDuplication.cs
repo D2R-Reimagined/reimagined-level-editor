@@ -4,6 +4,8 @@ using System.Text.Json.Nodes;
 namespace D2RLevel.Core;
 
 public sealed record ModelDuplication(PresetEntity[] Sources, PresetEntity[] Copies);
+/// <summary>Models placed together in one edit, such as a row painted from the tileset palette.</summary>
+public sealed record ModelPlacement(PresetEntity[] Added);
 
 public sealed partial class PresetDocument
 {

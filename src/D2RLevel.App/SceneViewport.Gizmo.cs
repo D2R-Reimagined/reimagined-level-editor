@@ -66,7 +66,7 @@ public sealed partial class SceneViewport
     {
         gizmo.Handles.Clear();
         gizmo.Highlight = dragAxis;
-        if (selected is { } entity && CanDrag(entity) && ActualWidth > 0 && ActualHeight > 0)
+        if (brush is null && selected is { } entity && CanDrag(entity) && ActualWidth > 0 && ActualHeight > 0)
         {
             var visual = visuals[entity.Index];
             var bounds = visual.Transform.TransformBounds(visual.Content.Bounds);

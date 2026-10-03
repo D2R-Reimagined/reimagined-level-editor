@@ -192,7 +192,7 @@ public sealed partial class SceneViewport : Grid
             visuals[member.Index].Transform = Transform(start with { Position = new(start.Position.X + delta.X, start.Position.Y + delta.Y, start.Position.Z + delta.Z) });
         Select(entity);
     }
-    public void CancelDrag() { EndMarquee(false); EndDrag(false); }
+    public void CancelDrag() { EndMarquee(false); EndDrag(false); EndBrush(false); }
     internal void EndDrag(bool commit)
     {
         var entity = dragEntity; var value = dragValue; bool changed = dragging && value != dragStart;
@@ -288,6 +288,7 @@ public sealed partial class SceneViewport : Grid
         Children.Add(marquee);
         Children.Add(modeLabel);
         Children.Add(duplicateLabel);
+        Children.Add(brushLabel);
         viewport.Camera = camera;
         MouseDown += Down;
         MouseMove += Move;
@@ -295,6 +296,7 @@ public sealed partial class SceneViewport : Grid
         {
             if (e.ChangedButton == MouseButton.Left && marqueePending) { ContinueMarquee(e.GetPosition(this)); EndMarquee(true); e.Handled = true; }
             else if (e.ChangedButton == MouseButton.Left && dragEntity is not null) { EndDrag(true); e.Handled = true; }
+            else if (e.ChangedButton == MouseButton.Left && brushStroke) { EndBrush(true); e.Handled = true; }
             else if (e.ChangedButton is MouseButton.Right or MouseButton.Middle) ReleaseMouseCapture();
         };
         LostMouseCapture += (_, _) => { orbitGesture = false; CancelDrag(); };
@@ -304,13 +306,18 @@ public sealed partial class SceneViewport : Grid
         KeyDown += (_, e) =>
         {
             // With Alt held, WPF reports Escape as a system key.
-            if (e.Key == Key.Escape || (e.Key == Key.System && e.SystemKey == Key.Escape)) { CancelDrag(); e.Handled = true; }
+            if (e.Key == Key.Escape || (e.Key == Key.System && e.SystemKey == Key.Escape)) { if (!BrushEscape()) CancelDrag(); e.Handled = true; }
+            if (e.Key == Key.R && brush is not null) { RotateBrush(); e.Handled = true; }
             if (e.Key == Key.F) { CancelDrag(); FrameSelected(); e.Handled = true; }
             if (e.Key == Key.Home) { CancelDrag(); FrameAll(); e.Handled = true; }
         };
         UpdateCamera();
         SizeChanged += (_, _) => { EndMarquee(false); UpdateVisibility(); UpdateGizmo(); };
-        MouseLeave += (_, _) => { if (dragEntity is null) { gizmo.Highlight = null; gizmo.InvalidateVisual(); Cursor = null; } };
+        MouseLeave += (_, _) =>
+        {
+            if (dragEntity is null && brush is null) { gizmo.Highlight = null; gizmo.InvalidateVisual(); Cursor = null; }
+            if (!brushStroke) { BrushPlan = []; brushPreview.Content = null; }
+        };
     }
 
     public void SetScene(LoadedScene scene)
@@ -345,6 +352,7 @@ public sealed partial class SceneViewport : Grid
         selection.Content = null; overlay.Content = null;
         viewport.Children.Add(selection);
         viewport.Children.Add(overlay);
+        if (brush is not null) viewport.Children.Add(brushPreview);
         SetTerrainVisible(terrainVisible);
         FrameAll();
     }
@@ -502,6 +510,7 @@ public sealed partial class SceneViewport : Grid
             CaptureMouse(); e.Handled = true; return;
         }
         if (e.ChangedButton != MouseButton.Left) return;
+        if (brush is not null) { if (BeginBrush(last)) CaptureMouse(); e.Handled = true; return; }
         if (BeginLeftInteraction(last, Keyboard.Modifiers)) CaptureMouse();
         e.Handled = true;
     }
@@ -539,6 +548,7 @@ public sealed partial class SceneViewport : Grid
     public bool IsLocked(PresetEntity entity) => TerrainLocked && entity.IsTerrain;
     private void Move(object sender, MouseEventArgs e)
     {
+        if (!IsMouseCaptured && brush is not null) { UpdateBrush(e.GetPosition(this)); return; }
         if (!IsMouseCaptured)
         {
             gizmo.Highlight = HitGizmo(e.GetPosition(this)); gizmo.InvalidateVisual();
@@ -547,6 +557,7 @@ public sealed partial class SceneViewport : Grid
         }
         var point = e.GetPosition(this); var delta = point - last; last = point;
         if (marqueePending) { ContinueMarquee(point); e.Handled = true; return; }
+        if (brushStroke) { UpdateBrush(point); e.Handled = true; return; }
         if (dragEntity is not null) { ContinueDrag(point); e.Handled = true; return; }
         if (e.RightButton == MouseButtonState.Pressed)
             Look(delta.X, delta.Y, orbitGesture);

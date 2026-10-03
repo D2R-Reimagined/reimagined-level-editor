@@ -51,6 +51,8 @@ public partial class MainWindow : Window
         Scene.AllowModelDragging = true;
         Scene.DragCommitted += (entity, transform) => { try { Apply(entity, transform); } catch (Exception ex) { Error(ex); } };
         Scene.DuplicationCommitted += DuplicateAlongAxis;
+        Scene.UnitSubtileSize = () => Ds1Preview.UnitsPerTile / 5;
+        InitializePainting();
         Closing += OnClosing;
         PreviewKeyDown += OnKey;
         InitializeCompanion();
@@ -122,6 +124,7 @@ public partial class MainWindow : Window
                 if (arguments.Contains("--duplicate-smoke")) { await VerifyDuplication(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--gizmo-smoke")) { await VerifyMovementGizmo(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--authoring-smoke")) { await VerifyAuthoring(output); Application.Current.Shutdown(0); return; }
+                if (arguments.Contains("--tileset-smoke")) { await VerifyTilesetAuthoring(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--workspace-smoke") || arguments.Contains("--workspace-restore-smoke"))
                 { await VerifyWorkspace(output); Application.Current.Shutdown(0); return; }
                 if (arguments.Contains("--group-smoke")) { await VerifyGroups(output); Application.Current.Shutdown(0); return; }
@@ -328,6 +331,8 @@ public partial class MainWindow : Window
             cts.Token.ThrowIfCancellationRequested();
             if (document != candidate)
             {
+                // The palette paints into one document's tileset; a different scene needs its own.
+                palette?.Close();
                 addedModels.Clear(); removedModels.Clear();
                 connectionEdits = null;
                 workspaceSession = string.Equals(openingWorkspaceSession?.Scene.JsonPath, candidate.SourcePath, StringComparison.OrdinalIgnoreCase) ? openingWorkspaceSession : null;

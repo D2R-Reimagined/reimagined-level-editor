@@ -75,6 +75,8 @@ public sealed partial class Ds1CollisionDocument
         Set(after); History.Record(() => Set(before), () => Set(after));
     }
     private bool Anchored(Patrol p, int x, int y) => unchecked((int)Read(p.AnchorOffset)) == x && unchecked((int)Read(p.AnchorOffset + 4)) == y;
+    /// <summary>True when a patrol route starts at this subtile, so a new placement there would be ambiguous.</summary>
+    public bool IsPatrolAnchor(int x, int y) => patrols.Any(p => Anchored(p, x, y));
     public IReadOnlyList<Ds1PathPoint> PatrolPoints(int unitIndex)
     {
         var unit = Units[unitIndex];

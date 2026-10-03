@@ -32,6 +32,7 @@ public partial class MainWindow
         var catalog = new EntranceConnections(resolver, root, canSave ? connectionEdits : null);
         return new(map, LevelProperties.Load(current.SourcePath, map.SourcePath, resolver), catalog, canSave ? connectionEdits : null, current.History, links.MoveExit,
             () => { Ds1Preview.SetScene(pairedScene, pairedStatus); ds1Window?.RefreshFromWorkspace(); RefreshState(); },
-            canSave ? () => { workspaceSession!.Save(current, map, links, connectionEdits); RefreshState(); _ = RefreshLevelProperties(); } : null, warning);
+            canSave ? () => { workspaceSession!.Save(current, map, links, connectionEdits); RefreshState(); _ = RefreshLevelProperties(); } : null, warning,
+            links.AddExit, pairedScene?.Collision);
     }
 }

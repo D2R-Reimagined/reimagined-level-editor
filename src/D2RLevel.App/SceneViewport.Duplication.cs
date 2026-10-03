@@ -24,11 +24,17 @@ public sealed partial class SceneViewport
     internal int DuplicatePreviewCount => duplicateCount * dragMembers.Count;
     internal double DuplicateSpacing => duplicateSpacing;
     internal Model3D? DuplicatePreviewGeometry => duplicatePreview.Content;
+    /// <summary>HD units per DS1 subtile. DS1 unit copies are spaced in whole subtiles so they land exactly on the gameplay grid.</summary>
+    public Func<double>? UnitSubtileSize { get; set; }
 
     private bool BeginDuplication(PresetEntity[] members, MovementAxis axis)
     {
-        if (DuplicationCommitted is null || members.Length > PresetDocument.MaximumDuplicateModels ||
-            members.Any(e => !GroupMovement.CanGroup(e) || placeholders.Contains(e.Index))) return false;
+        // DS1 units repeat on the subtile grid; their markers are placeholders but still give a usable size.
+        bool units = members.All(e => e.GameplayUnitIndex is not null);
+        double subtile = units ? UnitSubtileSize?.Invoke() ?? 0 : 0;
+        if (DuplicationCommitted is null || members.Length > PresetDocument.MaximumDuplicateModels) return false;
+        if (units ? axis == MovementAxis.Y || !double.IsFinite(subtile) || subtile <= 0
+            : members.Any(e => !GroupMovement.CanGroup(e) || placeholders.Contains(e.Index))) return false;
         var bounds = Rect3D.Empty;
         foreach (var member in members)
         {
@@ -37,9 +43,13 @@ public sealed partial class SceneViewport
         }
         if (bounds.IsEmpty) return false;
         duplicateSpacing = axis switch { MovementAxis.X => bounds.SizeX, MovementAxis.Y => bounds.SizeY, _ => bounds.SizeZ };
+        // Round up so neighbouring copies do not overlap, forgiving a sliver so a model that is
+        // just over a whole number of subtiles wide does not leave a visible gap.
+        if (units && double.IsFinite(duplicateSpacing)) duplicateSpacing = Math.Max(1, Math.Ceiling(duplicateSpacing / subtile - 0.1)) * subtile;
         if (!double.IsFinite(duplicateSpacing) || duplicateSpacing < 0.0001) return false;
         duplicating = true; duplicateCount = 0; duplicateStep = default;
-        duplicateLabel.Text = L.T("Alt-drag: repeat at model-sized intervals. Release to place; Esc cancels.");
+        duplicateLabel.Text = units ? L.T("Alt-drag: repeat this unit on the subtile grid. Release to place; Esc cancels.")
+            : L.T("Alt-drag: repeat at model-sized intervals. Release to place; Esc cancels.");
         duplicateLabel.Visibility = Visibility.Visible;
         viewport.Children.Add(duplicatePreview);
         return true;

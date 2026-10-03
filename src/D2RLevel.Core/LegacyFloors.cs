@@ -129,6 +129,8 @@ public enum TilesetSource
     LevelTables,
     /// <summary>The DS1's own header, for a room no LvlPrest row assigns to a level.</summary>
     Ds1Header,
+    /// <summary>A tileset chosen while creating a new level, before the project that will store it exists.</summary>
+    Chosen,
 }
 
 public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Main, int Sub), Dt1Floor[]> Tiles,
@@ -140,7 +142,8 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
     public int MissingCells => Enumerable.Range(0, Map.Layers.Length).Sum(l =>
         Enumerable.Range(0, Map.Width * Map.Height).Count(i => { var c = FloorAt(l, i % Map.Width, i / Map.Width); return !c.IsEmpty && !Tiles.ContainsKey((c.Main, c.Sub)); }));
 
-    public static LegacyFloorScene Load(string ds1Path, AssetResolver resolver, CancellationToken token, string? contextDataRoot = null, LevelTileset? context = null)
+    public static LegacyFloorScene Load(string ds1Path, AssetResolver resolver, CancellationToken token, string? contextDataRoot = null, LevelTileset? context = null,
+        TilesetSource contextSource = TilesetSource.Project)
     {
         string Normalize(string p) => p.Replace('\\', '/').ToLowerInvariant();
         var overrideRoot = contextDataRoot ?? PresetPairing.Split(ds1Path, "global/tiles")?.DataRoot;
@@ -164,7 +167,7 @@ public sealed record LegacyFloorScene(Ds1Floors Map, IReadOnlyDictionary<(int Ma
             context.Validate();
             mask = context.Mask;
             paths = context.Files.Select(Resolve).ToArray();
-            source = TilesetSource.Project;
+            source = contextSource;
         }
         else if (LevelTablePreset(ds1Path, resolver, Normalize, Resolve) is { } preset)
         {

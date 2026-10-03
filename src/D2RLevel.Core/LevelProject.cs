@@ -20,6 +20,9 @@ public sealed record LevelProject(int Version, Guid Id, string Name, string Pres
 {
     public const string Suffix = ".rle-project.json";
     public LevelPlacement[] Placements { get; init; } = [];
+    /// <summary>The LvlTypes row chosen when the level was created, when it was created from one. Older projects have none.</summary>
+    public int? LevelType { get; init; }
+    public string? LevelTypeName { get; init; }
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
     internal static void ValidateAssetPath(string value, string prefix, string extension)
     {
@@ -38,6 +41,7 @@ public sealed record LevelProject(int Version, Guid Id, string Name, string Pres
         Tileset.Validate();
         if (Placements is null || Placements.Length > 10000 || Placements.Any(p => p is null || p.Type is not (1 or 2) || p.Id < 0 || string.IsNullOrWhiteSpace(p.Name)))
             throw new InvalidDataException("Invalid template placements.");
+        if (LevelType is <= 0 || LevelTypeName?.Length > 100) throw new InvalidDataException("Invalid project level type.");
     }
     public static LevelProject? ForPreset(string preset)
     {
@@ -58,7 +62,8 @@ public sealed record LevelProject(int Version, Guid Id, string Name, string Pres
 
     /// <summary>Create a new, isolated workspace directory by publishing a complete staged directory.
     /// The HD scaffold is preserved; DS1 floors are newly constructed and all units/walls start empty.</summary>
-    public static WorkspaceScene CreateFromTemplate(string destination, string name, PresetDocument template, LegacyFloorScene source, uint floor, GridCalibration? calibration = null, AssetResolver? assets = null, bool keepScenery = false)
+    public static WorkspaceScene CreateFromTemplate(string destination, string name, PresetDocument template, LegacyFloorScene source, uint floor, GridCalibration? calibration = null, AssetResolver? assets = null, bool keepScenery = false,
+        LevelTypeChoice? levelType = null)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Length > 100) throw new ArgumentException("Enter a project name (1–100 characters).");
         destination = Path.GetFullPath(destination);
@@ -75,7 +80,7 @@ public sealed record LevelProject(int Version, Guid Id, string Name, string Pres
             "data/hd/env/preset/" + location.Relative.Replace('\\', '/'), Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(template.Serialize())));
         project = project with { Placements = (ForPreset(template.SourcePath)?.Placements ?? []).Concat(source.Collision?.Document.Units.Where(u => u.Type is 1 or 2 && u.Id >= 0)
             .Select(u => new LevelPlacement($"{(u.Type == 1 ? "NPC/monster" : "Object")} {u.Id}", u.Type, u.Id, u.Flags)) ?? [])
-            .DistinctBy(p => (p.Type, p.Id, p.Flags)).ToArray() };
+            .DistinctBy(p => (p.Type, p.Id, p.Flags)).ToArray(), LevelType = levelType?.Id, LevelTypeName = levelType?.Name };
         project.Validate();
         string stage = Path.Combine(parent, ".rle-create-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stage);

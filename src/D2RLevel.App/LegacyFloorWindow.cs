@@ -25,6 +25,7 @@ public sealed partial class LegacyFloorWindow : Window
     {
         TilesetSource.Project => L.T("tileset from the level project"),
         TilesetSource.LevelTables => L.T("tileset from LvlPrest/LvlTypes"),
+        TilesetSource.Chosen => L.T("tileset chosen for the new level"),
         _ => L.T("tileset from the DS1 header · this room is shared between generated levels"),
     };
 

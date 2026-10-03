@@ -60,6 +60,7 @@ internal static partial class RenderingChecks
         GizmoChecks();
         DuplicationRenderingChecks();
         BoxSelectionChecks();
+        BrushChecks();
     }
 
     private static void PlacementChecks()
