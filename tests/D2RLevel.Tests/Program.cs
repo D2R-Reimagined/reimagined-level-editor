@@ -2,6 +2,33 @@ using System.Text.Json.Nodes;
 using D2RLevel.Core;
 using D2RLevel.Assets;
 
+if(args.Length>0 && args[0] is "--boundary-portability-check" or "--boundary-polygon-check" or "--boundary-regeneration-check")
+{
+    if(args.Length!=4)throw new ArgumentException("Expected fallback data, decoder and fresh output.");
+    BoundaryPortabilityChecks.Run(args[1],args[2],args[3],args[0]!="--boundary-portability-check",args[0]=="--boundary-regeneration-check");return;
+}
+
+if(args.Length>0 && args[0]=="--boundary-map-export")
+{
+    if(args.Length!=7)throw new ArgumentException("Expected preset, DS1, fallback data, decoder, fresh output and tileset JSON.");
+    ModelReader.ConfigureDecoder(Path.GetFullPath(args[4]));
+    var context=System.Text.Json.JsonSerializer.Deserialize<LevelTileset>(File.ReadAllBytes(args[6]))!;
+    context.Validate();var assets=new AssetResolver(args[3]);
+    var source=new AssetResolver(PresetPairing.Split(args[1],"hd/env/preset")!.Value.DataRoot);
+    string Resolve(string p)=>File.Exists(source.ResolveForRead(p))?source.ResolveForRead(p):assets.ResolveForRead(p);
+    var map=Ds1CollisionDocument.Load(args[2]);
+    var collision=new LegacyCollision(map,context.Files.SelectMany(p=>LegacyCollision.ReadTiles(Resolve(p))));
+    var request=BoundaryAuthoring.Suggest(collision);
+    if(request is null){
+        for(int y=0;y<map.Height;y++)Console.WriteLine(new string(Enumerable.Range(0,map.Width).Select(x=>{
+            var cell=collision.At(x,y);return cell.Unresolved?'?':cell.NoFloor?' ':cell.BlockedSubtiles>0?'#':cell.VariantDependent?'v':'.';}).ToArray()));
+        throw new InvalidDataException("No supported clear area (?: unresolved, #: blocked, v: variant-dependent).");
+    }
+    var output=BoundaryExporter.Export(args[1],args[2],assets,request,
+        "data/hd/env/model/act1/caves/act1_caves_walls/R_wall01.model",args[5],GridCalibration.Typed(10),context);
+    Console.WriteLine(output);return;
+}
+
 if (args.Length > 0 && args[0] == "--terrain-export-probe")
 {
     if (args.Length != 4) throw new ArgumentException("Expected model path, granny DLL and a fresh output directory.");
@@ -301,6 +328,8 @@ try
     GameplayCatalogChecks.Run(folder, Check, Throws);
     EntranceChecks.Run(folder, Check, Throws);
     TilesetChecks.Run(folder, Check, Throws);
+    BoundaryChecks.Run(folder, Check, Throws);
+    BoundaryContourChecks.Run(folder, Check, Throws);
     PrefabChecks.Run(folder, Check, Throws);
     DuplicationChecks.Run(folder, Check, Throws);
     LocalizationChecks.Run(folder, Check, Throws);

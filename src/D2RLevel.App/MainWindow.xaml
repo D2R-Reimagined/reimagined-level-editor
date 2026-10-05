@@ -25,6 +25,7 @@
               <MenuItem Header="{l:T 'Entrances and exits…'}" Click="Entrances_Click"/>
               <MenuItem Header="{l:T 'Gameplay prefabs…'}" Click="GameplayPrefabs_Click"/>
               <MenuItem Header="{l:T 'Draw ground / edit gameplay…'}" Click="Floors_Click"/>
+              <MenuItem Header="{l:T 'Build boundary (experimental)…'}" Click="BuildBoundary_Click"/>
             </MenuItem>
             <MenuItem Header="{l:T '_View'}">
               <MenuItem Header="{l:T 'Level properties'}" Click="LevelProperties_Click"/>
