@@ -2,6 +2,100 @@ using System.Text.Json.Nodes;
 using D2RLevel.Core;
 using D2RLevel.Assets;
 
+if(args.Length>0&&args[0] is "--cave-connection-fixture" or "--cave-connection-rollback-check")
+{
+    if(args.Length!=5)throw new ArgumentException("Expected registered cave folder, extracted vanilla data, fresh output and table helper.");
+    if(args[0]=="--cave-connection-rollback-check")
+    {
+        bool rejected=false;
+        try{CaveConnectionFixture.Prepare(args[1],args[2],args[3],args[4],true);}
+        catch(IOException ex) when(ex.Message=="Injected late fixture failure before publication."){rejected=true;}
+        if(!rejected||Directory.Exists(args[3]))throw new InvalidDataException("Failed fixture did not roll back the entire output.");
+        Console.WriteLine("PASS failed fixture removes fresh output and preserves source inputs.");
+    }
+    else CaveConnectionFixture.Prepare(args[1],args[2],args[3],args[4]);
+    return;
+}
+
+if(args.Length>0&&args[0]=="--cave-export-audit")
+{
+    if(args.Length!=5)throw new ArgumentException("Expected candidate folder, asset data, decoder and receipt path.");
+    CaveExportChecks.Audit(args[1],args[2],args[3],args[4]);return;
+}
+
+if (args.Length > 0 && args[0] == "--cave-fixture-scaffold")
+{
+    if(args.Length!=3)throw new ArgumentException("Expected template preset and a new fixture preset path.");
+    if(File.Exists(args[2]))throw new IOException("Use a fresh fixture preset.");
+    var scaffold=PresetDocument.Load(args[1]).AuthoringScaffold(args[2],false);
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[2]))!);
+    File.WriteAllBytes(args[2],scaffold.Serialize());
+    Console.WriteLine("Created fixture through the existing New level scaffold API; original unchanged.");return;
+}
+
+if (args.Length > 0 && args[0] == "--cave-collision-compare")
+{
+    if (args.Length != 5) throw new ArgumentException("Expected source DS1, candidate DS1, DT1 and receipt path.");
+    CaveWorkflowAudit.Compare(args[1],args[2],args[3],args[4]); return;
+}
+
+if (args.Length > 0 && args[0] is "--ground-export" or "--ground-export-transaction-check")
+{
+    if (args.Length != 7) throw new ArgumentException("Expected source data, asset data, decoder, preset name, request JSON and output directory.");
+    ModelReader.ConfigureDecoder(Path.GetFullPath(args[3]));
+    var request = System.Text.Json.JsonSerializer.Deserialize<GroundExtensionRequest>(File.ReadAllBytes(args[5]))!;
+    if(args[0]=="--ground-export-transaction-check")
+    {CaveTransactionChecks.Run(args[1],args[2],args[3],args[4],request,args[6]);return;}
+    var output = GroundExtensionExporter.Export(Path.Combine(args[1], $"hd/env/preset/act1/caves/{args[4]}.json"),
+        Path.Combine(args[1], $"global/tiles/act1/caves/{args[4]}.ds1"), new AssetResolver(args[2]),
+        new LevelTileset(1, ["data/global/tiles/act1/caves/cave.dt1"]), request, args[6]);
+    Console.WriteLine(output); return;
+}
+
+if(args.Length>0 && args[0]=="--boundary-audit")
+{
+    if(args.Length!=4)throw new ArgumentException("Expected original data, registered boundary data and receipt path.");
+    BoundaryFixtureAudit.Run(args[1],args[2],args[3]);return;
+}
+
+if(args.Length>0 && args[0] is "--boundary-portability-check" or "--boundary-polygon-check" or "--boundary-regeneration-check")
+{
+    if(args.Length!=4)throw new ArgumentException("Expected fallback data, decoder and fresh output.");
+    BoundaryPortabilityChecks.Run(args[1],args[2],args[3],args[0]!="--boundary-portability-check",args[0]=="--boundary-regeneration-check");return;
+}
+
+if(args.Length>0 && args[0]=="--boundary-map-export")
+{
+    if(args.Length!=7)throw new ArgumentException("Expected preset, DS1, fallback data, decoder, fresh output and tileset JSON.");
+    ModelReader.ConfigureDecoder(Path.GetFullPath(args[4]));
+    var context=System.Text.Json.JsonSerializer.Deserialize<LevelTileset>(File.ReadAllBytes(args[6]))!;
+    context.Validate();var assets=new AssetResolver(args[3]);
+    var source=new AssetResolver(PresetPairing.Split(args[1],"hd/env/preset")!.Value.DataRoot);
+    string Resolve(string p)=>File.Exists(source.ResolveForRead(p))?source.ResolveForRead(p):assets.ResolveForRead(p);
+    var map=Ds1CollisionDocument.Load(args[2]);
+    var collision=new LegacyCollision(map,context.Files.SelectMany(p=>LegacyCollision.ReadTiles(Resolve(p))));
+    var request=BoundaryAuthoring.Suggest(collision);
+    if(request is null){
+        for(int y=0;y<map.Height;y++)Console.WriteLine(new string(Enumerable.Range(0,map.Width).Select(x=>{
+            var cell=collision.At(x,y);return cell.Unresolved?'?':cell.NoFloor?' ':cell.BlockedSubtiles>0?'#':cell.VariantDependent?'v':'.';}).ToArray()));
+        throw new InvalidDataException("No supported clear area (?: unresolved, #: blocked, v: variant-dependent).");
+    }
+    var output=BoundaryExporter.Export(args[1],args[2],assets,request,
+        "data/hd/env/model/act1/caves/act1_caves_walls/R_wall01.model",args[5],GridCalibration.Typed(10),context);
+    Console.WriteLine(output);return;
+}
+
+if (args.Length > 0 && args[0] == "--boundary-export")
+{
+    if(args.Length!=5)throw new ArgumentException("Expected candidate data, fallback data, decoder and fresh destination.");
+    ModelReader.ConfigureDecoder(Path.GetFullPath(args[3]));
+    var output=BoundaryExporter.Export(Path.Combine(args[1],"hd/env/preset/act1/rlecave/cave.json"),
+        Path.Combine(args[1],"global/tiles/act1/rlecave/cave.ds1"),new AssetResolver(args[2]),
+        new(28,8,38,15,BoundarySide.West,10,3),
+        "data/hd/env/model/act1/caves/act1_caves_walls/R_wall01.model",args[4],GridCalibration.Typed(10));
+    Console.WriteLine(output);return;
+}
+
 if (args.Length > 0 && args[0] == "--terrain-export-probe")
 {
     if (args.Length != 4) throw new ArgumentException("Expected model path, granny DLL and a fresh output directory.");
@@ -301,6 +395,12 @@ try
     GameplayCatalogChecks.Run(folder, Check, Throws);
     EntranceChecks.Run(folder, Check, Throws);
     TilesetChecks.Run(folder, Check, Throws);
+    GroundExtensionChecks.Run(folder, Check, Throws);
+    BoundaryChecks.Run(folder, Check, Throws);
+    BoundaryContourChecks.Run(folder, Check, Throws);
+    CaveGrowthChecks.Run(folder, Check, Throws);
+    CaveContourChecks.Run(folder, Check, Throws);
+    WarpAuthoringChecks.Run(folder, Check, Throws);
     PrefabChecks.Run(folder, Check, Throws);
     DuplicationChecks.Run(folder, Check, Throws);
     LocalizationChecks.Run(folder, Check, Throws);

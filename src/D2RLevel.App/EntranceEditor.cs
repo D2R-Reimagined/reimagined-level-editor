@@ -27,6 +27,8 @@ internal sealed class EntranceEditor : Window
     private readonly TextBlock details = Text(), targetTitle = Text(), planText = Text(), status = Text(), sourceTitle = Text();
     private readonly Button move = new() { Content = L.T("Move selected exit") }, preview = new() { Content = L.T("Preview connection change") }, apply = new() { Content = L.T("Apply preview"), IsEnabled = false };
     private readonly Button undo = new() { Content = L.T("Undo") }, redo = new() { Content = L.T("Redo") };
+    private readonly ComboBox warpChoice = new ComboBox { MinWidth = 240, MaxWidth = 410 }.WithReadableItems();
+    private readonly Button assignWarp = new() { Content = L.T("Assign exit definition") };
     private readonly Button add = new() { Content = L.T("Place new exit"), ToolTip = L.T("Add a one-tile hidden exit for a slot this map does not use yet, then click ground to place it.") },
         suggest = new() { Content = L.T("Suggest spots"), ToolTip = L.T("Rank places where the selected exit can go: its warp lands players on walkable ground, with open space around them and room from other exits.") };
     private readonly ComboBox edge = new ComboBox { ToolTip = L.T("Favour one side of the map, for example the side its destination lies on.") }.WithReadableItems();
@@ -69,6 +71,18 @@ internal sealed class EntranceEditor : Window
         var right = new DockPanel(); Grid.SetColumn(right, 1); grid.Children.Add(right);
         var author = new StackPanel(); var authorScroll = new ScrollViewer { Content = author, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 265 }; var authorPanel = Panel(authorScroll); DockPanel.SetDock(authorPanel, Dock.Bottom); right.Children.Add(authorPanel);
         author.Children.Add(new TextBlock { Text = L.T("AUTHOR CONNECTION"), FontWeight = FontWeights.SemiBold, Margin = new(6) });
+        var warpActions = new WrapPanel(); author.Children.Add(warpActions);
+        warpActions.Children.Add(warpChoice); warpActions.Children.Add(assignWarp);
+        warpChoice.WithReadableItems(nameof(EntranceArea.Label));
+        warpChoice.ItemsSource = connections.HiddenWarpChoices.Select(r => new EntranceArea(EntranceConnections.Number(r["Id"]), $"{r["Id"]} · {r["Name"]}")).ToArray();
+        warpChoice.ToolTip = L.T("Choose an existing interactive, unlit definition for an unused hidden exit. Assign it before placing the marker, then inspect its landing overlay.");
+        assignWarp.Click += (_, _) => Run(() =>
+        {
+            if (AreaId is not { } area || slot is not { } s || warpChoice.SelectedItem is not EntranceArea choice) return;
+            if (HasTiles(s)) throw new InvalidOperationException("Assign the definition before placing this slot's marker. Undo its placement or save and reopen first.");
+            connections.AssignHiddenWarp(new(area, s), choice.Id);
+            status.Text = L.T("Exit definition staged. Use Suggest spots to place its marker, then Save Scene before previewing a connection.");
+        });
         var buttons = new WrapPanel(); author.Children.Add(buttons); buttons.Children.Add(move); buttons.Children.Add(add); buttons.Children.Add(suggest);
         buttons.Children.Add(new TextBlock { Text = L.T("Prefer"), VerticalAlignment = VerticalAlignment.Center, Margin = new(8, 0, 4, 0) }); buttons.Children.Add(edge);
         buttons.Children.Add(preview); buttons.Children.Add(apply); author.Children.Add(planText);
@@ -157,6 +171,9 @@ internal sealed class EntranceEditor : Window
         move.IsEnabled = editWarning is null && slot is { } selected && map.ExitMoveWarning(selected) is null;
         add.IsEnabled = editWarning is null && addExit is not null && slot is { } empty && !HasTiles(empty);
         suggest.IsEnabled = editWarning is null && slot is { } chosen && (HasTiles(chosen) ? move.IsEnabled : addExit is not null);
+        assignWarp.IsEnabled = edits is not null && editWarning is null && AreaId is { } warpArea && slot is { } warpSlot
+            && !HasTiles(warpSlot) && connections.Connection(new(warpArea, warpSlot)) is { Destination: 0, Warp: -1 };
+        warpChoice.IsEnabled = assignWarp.IsEnabled;
         preview.IsEnabled = edits is not null && editWarning is null && AreaId is not null && slot is not null && TargetId is not null && targetSlot is not null;
         undo.IsEnabled = history.CanUndo; redo.IsEnabled = history.CanRedo;
         status.Text = editWarning ?? (edits is null ? L.T("Open a mod workspace scene to author area connections. Marker moves can be saved with the paired DS1.") : edits.IsDirty ? L.T("Connection edits are staged. Save Scene to write the workspace Levels override.") : L.T("Select an exit marker or an area connection to begin."));

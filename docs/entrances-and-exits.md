@@ -40,13 +40,26 @@ The ranking also spreads suggestions apart. `levels.txt` offsets do not reliably
 
 ## Author area connections
 
+For a newly registered fixed area whose slot has `Vis = 0` and `Warp = -1`,
+select the unused slot, choose an existing definition in **AUTHOR CONNECTION**,
+and click **Assign exit definition** before placing its marker. Only interactive,
+unlit definitions with a selection rectangle and complete geometry are accepted.
+The definition is staged as a single undoable `Warp` cell edit; existing assigned
+or connected endpoints cannot be overwritten. Every preset must enable `Scan 1`.
+
+Use **Suggest spots** to evaluate the selected definition's arrival and walk-to
+offsets, place the marker, then **Save Scene** before previewing the connection.
+Prepare the second area the same way. Choose that area and its marker, preview
+the two reciprocal routes, apply, and save. Assignment does not create new Warp
+art or prove that a particular definition behaves correctly in the game.
+
 Open a mod workspace with a separate extracted asset folder. Select a source slot, choose another area, and select an exit on its map. **Preview connection change** displays every affected route before **Apply preview** stages one undoable edit.
 
 - Two unused endpoints become one reciprocal pair.
 - Two separate reciprocal pairs across four areas can exchange partners. For example, A↔X and B↔Y become A↔B and X↔Y. The former return routes are included in the preview.
 - All affected areas must be in the same act, use fixed presets (`DrlgType 2`), enable exit scanning (`Scan 1`), and have the selected marker and an unambiguous direction-compatible Warp definition in every advertised variant. Missing/ambiguous data and existing one-way links block authoring.
 
-Only the affected numeric `Vis` cells change. Existing `Warp` definitions, map geometry, other table bytes, BOM and line endings are preserved. **Save Scene** writes the workspace `global/excel/levels.txt` override together with JSON, DS1 and link metadata, retaining `.bak` files for replaced files and rolling back earlier replacements if a later write fails. A marker-only save does not create a Levels override. External table/dependency changes block a stale connection save.
+Connection changes affect only the reviewed numeric `Vis` cells. Assigning an exit definition changes only the selected unused `Warp` cell; the `lvlwarp.txt` definitions themselves remain unchanged. Other table bytes, BOM and line endings are preserved. **Save Scene** writes the workspace `global/excel/levels.txt` override together with JSON, DS1 and link metadata, retaining `.bak` files for replaced files and rolling back earlier replacements if a later write fails. A marker-only save does not create a Levels override. External table/dependency changes block a stale connection save.
 
 This editor adds hidden exits but does not create visible doorway exits or new exit artwork, arbitrary portal behavior, new area registrations, or generated-level links. It does not update `levels.bin`; use the mod's normal text-table compilation workflow. Confirm loading, travel in both directions and landing positions in a disposable game test before shipping.
 

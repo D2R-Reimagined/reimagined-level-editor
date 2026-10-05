@@ -10,6 +10,9 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Process-local fallback for diagnosing blank windows without changing Windows settings.
+        if (e.Args.Contains("--software-rendering"))
+            System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         base.OnStartup(e);
         // Text is resolved while the window is constructed, so the language must be active before XAML loads.
         var settings = EditorSettings.Load(D2RLevel.App.MainWindow.SettingsPathFor(e.Args), out _);

@@ -154,5 +154,31 @@ internal static class EntranceChecks
         _ = new EntranceConnections(assets, emptyWorkspace, fallbackEdits);
         File.WriteAllText(Path.Combine(emptyWorkspace, "global", "excel", "lvlwarp.txt"), warps);
         throws(fallbackEdits.VerifyUnchanged, "new workspace lookup override invalidates an observed base-table dependency");
+
+        // Start from genuinely unassigned slots, then reuse the normal reciprocal authoring path.
+        string assignRoot = Path.Combine(folder, "warp-assignment"), assignExcel = Path.Combine(assignRoot, "global", "excel");
+        Directory.CreateDirectory(assignExcel);
+        Map(Path.Combine(assignRoot, "global", "tiles", "a.ds1"), (2, 2, 0, 10, true));
+        Map(Path.Combine(assignRoot, "global", "tiles", "b.ds1"), (2, 2, 0, 11, true));
+        string blank = "\uFEFFName\tId\tAct\tDrlgType\tVis0\tWarp0\tUnknown\r\nA\t1\t0\t2\t0\t-1\t保留\r\nB\t2\t0\t2\t0\t-1\tkeep\r\n";
+        string assignPath = Path.Combine(assignExcel, "levels.txt"); File.WriteAllText(assignPath, blank, new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(assignExcel, "lvlprest.txt"), "Name\tDef\tLevelId\tScan\tFile1\r\nA\t1\t1\t1\ta.ds1\r\nB\t2\t2\t1\tb.ds1\r\n");
+        string assignmentWarps = "Name\tId\tDirection\tLitVersion\tNoInteract\tSelectX\tSelectY\tSelectDX\tSelectDY\tOffsetX\tOffsetY\tExitWalkX\tExitWalkY\r\nHidden\t0\tb\t0\t0\t-10\t-10\t20\t20\t2\t2\t0\t0\r\nLit\t1\tb\t1\t0\t-10\t-10\t20\t20\t2\t2\t0\t0\r\n";
+        string assignWarpPath = Path.Combine(assignExcel, "lvlwarp.txt"); File.WriteAllText(assignWarpPath, assignmentWarps);
+        var assignHistory = new EditHistory(); var assigned = new LevelTableEdits(assignPath, assignRoot, assignHistory);
+        var assignGraph = new EntranceConnections(null, assignRoot, assigned);
+        check(assignGraph.HiddenWarpChoices.Select(r => r["Id"]).SequenceEqual(new[] { "0" }), "hidden exit choices exclude lit definitions and allow zero ID");
+        throws(() => assignGraph.AssignHiddenWarp(new(1, 0), 1), "hidden exit rejects lit definition");
+        throws(() => assignGraph.AssignHiddenWarp(new(1, 0), 999), "hidden exit rejects missing definition");
+        assignGraph.AssignHiddenWarp(new(1, 0), 0);
+        check(Encoding.UTF8.GetString(assigned.Serialize()) == blank.Replace("A\t1\t0\t2\t0\t-1", "A\t1\t0\t2\t0\t0"), "warp assignment preserves every unrelated byte including BOM and Unicode");
+        throws(() => assignGraph.AssignHiddenWarp(new(1, 0), 0), "existing warp assignment cannot be overwritten");
+        assignHistory.Undo(); check(assigned.Serialize().SequenceEqual(Encoding.UTF8.GetBytes(blank)), "warp assignment undo restores exact bytes");
+        assignHistory.Redo(); assignGraph.AssignHiddenWarp(new(2, 0), 0);
+        assignGraph.Apply(new(1, 0), new(2, 0));
+        check(assignGraph.Connection(new(1, 0)) is { Destination: 2, Warp: 0, ReturnSlots: [0] }
+            && assignGraph.Connection(new(2, 0)).Destination == 1, "fresh warp assignments enable normal reciprocal connection authoring");
+        throws(() => assignGraph.AssignHiddenWarp(new(1, 0), 0), "connected endpoint cannot be reassigned");
+        File.AppendAllText(assignWarpPath, "\r\n"); throws(assigned.VerifyUnchanged, "external warp definition drift blocks save");
     }
 }
