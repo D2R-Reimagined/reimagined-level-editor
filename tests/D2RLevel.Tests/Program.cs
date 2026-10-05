@@ -2,6 +2,56 @@ using System.Text.Json.Nodes;
 using D2RLevel.Core;
 using D2RLevel.Assets;
 
+if(args.Length>0&&args[0] is "--cave-connection-fixture" or "--cave-connection-rollback-check")
+{
+    if(args.Length!=5)throw new ArgumentException("Expected registered cave folder, extracted vanilla data, fresh output and table helper.");
+    if(args[0]=="--cave-connection-rollback-check")
+    {
+        bool rejected=false;
+        try{CaveConnectionFixture.Prepare(args[1],args[2],args[3],args[4],true);}
+        catch(IOException ex) when(ex.Message=="Injected late fixture failure before publication."){rejected=true;}
+        if(!rejected||Directory.Exists(args[3]))throw new InvalidDataException("Failed fixture did not roll back the entire output.");
+        Console.WriteLine("PASS failed fixture removes fresh output and preserves source inputs.");
+    }
+    else CaveConnectionFixture.Prepare(args[1],args[2],args[3],args[4]);
+    return;
+}
+
+if(args.Length>0&&args[0]=="--cave-export-audit")
+{
+    if(args.Length!=5)throw new ArgumentException("Expected candidate folder, asset data, decoder and receipt path.");
+    CaveExportChecks.Audit(args[1],args[2],args[3],args[4]);return;
+}
+
+if (args.Length > 0 && args[0] == "--cave-fixture-scaffold")
+{
+    if(args.Length!=3)throw new ArgumentException("Expected template preset and a new fixture preset path.");
+    if(File.Exists(args[2]))throw new IOException("Use a fresh fixture preset.");
+    var scaffold=PresetDocument.Load(args[1]).AuthoringScaffold(args[2],false);
+    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[2]))!);
+    File.WriteAllBytes(args[2],scaffold.Serialize());
+    Console.WriteLine("Created fixture through the existing New level scaffold API; original unchanged.");return;
+}
+
+if (args.Length > 0 && args[0] == "--cave-collision-compare")
+{
+    if (args.Length != 5) throw new ArgumentException("Expected source DS1, candidate DS1, DT1 and receipt path.");
+    CaveWorkflowAudit.Compare(args[1],args[2],args[3],args[4]); return;
+}
+
+if (args.Length > 0 && args[0] is "--ground-export" or "--ground-export-transaction-check")
+{
+    if (args.Length != 7) throw new ArgumentException("Expected source data, asset data, decoder, preset name, request JSON and output directory.");
+    ModelReader.ConfigureDecoder(Path.GetFullPath(args[3]));
+    var request = System.Text.Json.JsonSerializer.Deserialize<GroundExtensionRequest>(File.ReadAllBytes(args[5]))!;
+    if(args[0]=="--ground-export-transaction-check")
+    {CaveTransactionChecks.Run(args[1],args[2],args[3],args[4],request,args[6]);return;}
+    var output = GroundExtensionExporter.Export(Path.Combine(args[1], $"hd/env/preset/act1/caves/{args[4]}.json"),
+        Path.Combine(args[1], $"global/tiles/act1/caves/{args[4]}.ds1"), new AssetResolver(args[2]),
+        new LevelTileset(1, ["data/global/tiles/act1/caves/cave.dt1"]), request, args[6]);
+    Console.WriteLine(output); return;
+}
+
 if (args.Length > 0 && args[0] == "--terrain-export-probe")
 {
     if (args.Length != 4) throw new ArgumentException("Expected model path, granny DLL and a fresh output directory.");
@@ -301,6 +351,10 @@ try
     GameplayCatalogChecks.Run(folder, Check, Throws);
     EntranceChecks.Run(folder, Check, Throws);
     TilesetChecks.Run(folder, Check, Throws);
+    GroundExtensionChecks.Run(folder, Check, Throws);
+    CaveGrowthChecks.Run(folder, Check, Throws);
+    CaveContourChecks.Run(folder, Check, Throws);
+    WarpAuthoringChecks.Run(folder, Check, Throws);
     PrefabChecks.Run(folder, Check, Throws);
     DuplicationChecks.Run(folder, Check, Throws);
     LocalizationChecks.Run(folder, Check, Throws);

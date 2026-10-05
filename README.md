@@ -211,14 +211,19 @@ The editor's UI text is loaded from `lang/<code>.json` files next to the executa
 To fix or add a language, edit or copy a file in `lang/` and open a pull request — see [lang/README.md](src/D2RLevel.App/lang/README.md). CI checks every language file against the strings the app actually uses, so a stale or mistyped entry is caught before merge. Developers wrap UI text with `L.T("…")` / `{l:T '…'}`; building the app regenerates `lang/en.json` and pads the other files, and CI fails if those regenerated files are not committed.
 
 Asset diagnostics, exception text from the map readers and the technical descriptions they produce (calibration summaries, link reasons) are not yet translated.
+## Experimental cave terrain
+
+Bounded paired HD/DS1 cave growth and offline Act I cave registration preparation.
+See [workflow and limits](docs/experimental-terrain.md).
+
 ## Current limitations
 
 - Model appearance cannot establish gameplay ownership automatically. HD visuals and DS1 gameplay are separate data.
 - Static meshes and albedo textures are previewed. Full game shaders, particles, water and physics are not simulated. Variations preview their first model. Skeletal animation is played only for a single character in the model explorer, not for scene entities or NPC previews.
-- Terrain uses existing meshes; untextured terrain can use projected DS1/DT1 floor graphics as an approximate reference. This is not a terrain asset writer or the game's biome shader.
+- Terrain uses existing meshes; untextured terrain can use projected DS1/DT1 floor graphics as an approximate reference. Experimental cave export writes supported terrain assets; general terrain authoring and the game's biome shader remain unsupported.
 - Collision tools edit supported DS1 overrides. Clearing an override cannot remove DT1/wall blocking. Variant-dependent and unresolved cells are indicated separately.
 - DS1 editing supports versions 16–18. Unsupported gameplay layouts remain preserved but cannot be edited. Unit IDs are displayed as raw IDs.
-- Parent transforms, arbitrary Warp-definition editing, DT1 writing, arbitrary per-subtile painting, map resizing and independent area registration are not implemented. New-level authoring uses fixed template dimensions, DS1 floor brushes, catalog gameplay recipes and template placements.
+- Parent transforms, arbitrary Warp-definition editing, general DT1 writing and arbitrary per-subtile painting remain unsupported. Experimental cave export supports bounded resizing and offline Act I cave registration preparation. New-level authoring uses fixed template dimensions, DS1 floor brushes, catalog gameplay recipes and template placements.
 - Patrol editing covers points, their actions and creating a path for a unit that has none. Newly created DS1s include an empty patrol block for first-path creation. What each action code makes a unit do is not established here, and an imported DS1 that stores no patrol block at all cannot be given its first path.
 - Native mesh decoding must finish before cancellation takes effect. Large scenes use reduced detail and batching; performance varies with assets and hardware.
 - Translation covers the editor's own UI text. Diagnostics, reader exceptions and the descriptive strings produced by the core library (calibration summaries, broken-link reasons) are English-only for now.
