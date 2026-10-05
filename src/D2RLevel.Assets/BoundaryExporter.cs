@@ -6,6 +6,13 @@ namespace D2RLevel.Assets;
 
 public static class BoundaryExporter
 {
+    private static void RequireRuntimeDs1Path(string relativePath)
+    {
+        string full = "data/global/tiles/" + relativePath.Replace('\\', '/');
+        if (full.Any(c => c < 32 || c > 126) || full.Length > 59)
+            throw new InvalidDataException("Preset map path must be ASCII and at most 59 bytes including data/global/tiles/. Shorten the map folder or filename before export.");
+    }
+
     public static BoundaryModelBounds Bounds(string modelFile)
     {
         var model=ModelReader.Load(modelFile);
@@ -24,7 +31,7 @@ public static class BoundaryExporter
         var location=PresetPairing.Split(presetPath,"hd/env/preset") ?? throw new InvalidDataException("Choose a paired exported candidate.");
         var mapLocation=PresetPairing.Split(mapPath,"global/tiles") ?? throw new InvalidDataException("Choose a game-relative DS1.");
         if(!Path.GetFullPath(location.DataRoot).Equals(Path.GetFullPath(mapLocation.DataRoot),StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Scene and map must belong to the same exported candidate.");
-        PresetPairing.RequireRuntimeDs1Path(mapLocation.Relative);
+        RequireRuntimeDs1Path(mapLocation.Relative);
         destination=Path.GetFullPath(destination);if(Directory.Exists(destination)||File.Exists(destination))throw new IOException("Choose a fresh boundary output folder.");
         string source=Path.GetFullPath(location.DataRoot);
         if(destination.StartsWith(source+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new IOException("Output must be outside the source candidate.");

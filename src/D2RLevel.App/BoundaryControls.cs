@@ -17,7 +17,7 @@ public partial class MainWindow
         if(document is null || pairedScene?.Collision is null || resolver is null || placementLinks is null)
         {Status.Text=L.T("Open a paired candidate and calibrate its grid before building a boundary.");return;}
         if(document.IsDirty || pairedScene.Collision.Document.IsDirty || placementLinks.HasMetadataChanges || connectionEdits?.IsDirty==true)
-        {Status.Text=L.T("Save your scene, links and entrance edits before exporting a ground extension.");return;}
+        {Status.Text=L.T("Save your scene, links and entrance edits before exporting a boundary.");return;}
         BoundaryRevision? revision;
         var mapDocument=pairedScene.Collision.Document;
         var previewCollision=pairedScene.Collision;

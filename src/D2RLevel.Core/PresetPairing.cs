@@ -4,14 +4,6 @@ public sealed record PresetPair(string JsonPath, string Ds1Path, string Relative
 
 public static class PresetPairing
 {
-    /// <summary>Current-build preset loading truncates the full DS1 open path to 59 bytes.</summary>
-    public static void RequireRuntimeDs1Path(string relativePath)
-    {
-        string full = "data/global/tiles/" + relativePath.Replace('\\', '/');
-        if (full.Any(c => c < 32 || c > 126) || full.Length > 59)
-            throw new InvalidDataException($"Preset map path must be ASCII and at most 59 bytes including data/global/tiles/: {full}. Shorten the map folder or filename before export.");
-    }
-
     public static (string DataRoot, string Relative)? Split(string path, string prefix)
     {
         var full = Path.GetFullPath(path).Replace('\\', '/');

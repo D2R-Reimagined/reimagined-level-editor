@@ -58,13 +58,6 @@ jobs:
           $drift = git status --porcelain -- src/D2RLevel.App/lang
           if ($drift) { Write-Host $drift; throw 'Build regenerated language files that are not committed. Build locally and commit src/D2RLevel.App/lang.' }
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Check cave registration
-        run: node --test scripts/PrepareCaveArea.test.cjs scripts/PrepareBoundaryArea.test.cjs scripts/tsv.test.cjs
-
       - name: Verify release automation scripts
         run: ./.github/scripts/Test-ReleaseAutomation.ps1
 

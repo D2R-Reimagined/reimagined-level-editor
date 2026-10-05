@@ -2,8 +2,9 @@ using System.Buffers.Binary;
 
 namespace D2RLevel.Core;
 
+public sealed record BoundaryContourCell(int X, int Y, int Mask);
 public sealed record BoundaryContourIdentity(int SourceMain, int SourceSub, int Style, int[] Masks);
-public sealed record BoundaryContourResult(byte[] Map, byte[] Tiles, BoundaryContourIdentity[] Identities, CaveContourCell[] Cells);
+public sealed record BoundaryContourResult(byte[] Map, byte[] Tiles, BoundaryContourIdentity[] Identities, BoundaryContourCell[] Cells);
 
 /// <summary>Outline the actual open floor near a boundary, preserving each floor's variants and graphics.</summary>
 public static class BoundaryContour
@@ -96,6 +97,6 @@ public static class BoundaryContour
         int next=checked(276+outputTiles.Count*96);
         foreach(var tile in outputTiles){BinaryPrimitives.WriteInt32LittleEndian(tile.Header.AsSpan(72),next);writer.Write(tile.Header);next=checked(next+tile.Payload.Length);}
         foreach(var tile in outputTiles)writer.Write(tile.Payload);
-        return new(bytes,stream.ToArray(),identities,assignments.Select(a=>new CaveContourCell(a.X,a.Y,a.Mask)).ToArray());
+        return new(bytes,stream.ToArray(),identities,assignments.Select(a=>new BoundaryContourCell(a.X,a.Y,a.Mask)).ToArray());
     }
 }
