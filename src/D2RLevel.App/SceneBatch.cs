@@ -32,31 +32,45 @@ public sealed class SceneBatch
         foreach (var part in included)
         {
             token.ThrowIfCancellationRequested();
-            var source = (MeshGeometry3D)part.Model.Geometry;
-            int offset = positions.Count;
-            var matrix = SceneViewport.Transform(part.Entity.Transform).Value;
-            var inverse = matrix;
-            if (inverse.HasInverse) inverse.Invert(); else inverse = Matrix3D.Identity;
-            bool flip = matrix.Determinant < 0;
-            foreach (var p in source.Positions) positions.Add(matrix.Transform(p));
-            foreach (var n in source.Normals)
-            {
-                var normal = new Vector3D(n.X * inverse.M11 + n.Y * inverse.M12 + n.Z * inverse.M13,
-                    n.X * inverse.M21 + n.Y * inverse.M22 + n.Z * inverse.M23,
-                    n.X * inverse.M31 + n.Y * inverse.M32 + n.Z * inverse.M33);
-                if (normal.LengthSquared > 0) normal.Normalize(); normals.Add(normal);
-            }
-            foreach (var p in source.TextureCoordinates) uv.Add(p);
-            for (int i = 0; i < source.TriangleIndices.Count; i += 3)
-            {
-                indices.Add(offset + source.TriangleIndices[i]);
-                indices.Add(offset + source.TriangleIndices[i + (flip ? 2 : 1)]);
-                indices.Add(offset + source.TriangleIndices[i + (flip ? 1 : 2)]);
-            }
+            Append((MeshGeometry3D)part.Model.Geometry, SceneViewport.Transform(part.Entity.Transform).Value, positions, normals, uv, indices);
         }
         var model = new GeometryModel3D(new MeshGeometry3D { Positions = positions, Normals = normals, TextureCoordinates = uv, TriangleIndices = indices }, Parts[0].Model.Material)
             { BackMaterial = Parts[0].Model.BackMaterial };
         model.Freeze(); return model;
+    }
+
+    /// <summary>A frozen copy of one mesh part with a transform applied to its vertices, keeping its materials.</summary>
+    public static GeometryModel3D Bake(GeometryModel3D part, Matrix3D matrix)
+    {
+        var positions = new Point3DCollection(); var normals = new Vector3DCollection();
+        var uv = new PointCollection(); var indices = new Int32Collection();
+        Append((MeshGeometry3D)part.Geometry, matrix, positions, normals, uv, indices);
+        var model = new GeometryModel3D(new MeshGeometry3D { Positions = positions, Normals = normals, TextureCoordinates = uv, TriangleIndices = indices }, part.Material)
+            { BackMaterial = part.BackMaterial };
+        model.Freeze(); return model;
+    }
+
+    private static void Append(MeshGeometry3D source, Matrix3D matrix, Point3DCollection positions, Vector3DCollection normals, PointCollection uv, Int32Collection indices)
+    {
+        int offset = positions.Count;
+        var inverse = matrix;
+        if (inverse.HasInverse) inverse.Invert(); else inverse = Matrix3D.Identity;
+        bool flip = matrix.Determinant < 0;
+        foreach (var p in source.Positions) positions.Add(matrix.Transform(p));
+        foreach (var n in source.Normals)
+        {
+            var normal = new Vector3D(n.X * inverse.M11 + n.Y * inverse.M12 + n.Z * inverse.M13,
+                n.X * inverse.M21 + n.Y * inverse.M22 + n.Z * inverse.M23,
+                n.X * inverse.M31 + n.Y * inverse.M32 + n.Z * inverse.M33);
+            if (normal.LengthSquared > 0) normal.Normalize(); normals.Add(normal);
+        }
+        foreach (var p in source.TextureCoordinates) uv.Add(p);
+        for (int i = 0; i < source.TriangleIndices.Count; i += 3)
+        {
+            indices.Add(offset + source.TriangleIndices[i]);
+            indices.Add(offset + source.TriangleIndices[i + (flip ? 2 : 1)]);
+            indices.Add(offset + source.TriangleIndices[i + (flip ? 1 : 2)]);
+        }
     }
 
     public static SceneBatch[] Create(IReadOnlyList<SceneItem> items, CancellationToken token)

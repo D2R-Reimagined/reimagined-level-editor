@@ -563,7 +563,7 @@ public partial class MainWindow : Window
         var search = Search.Text.Trim();
         var selected = SelectedEntities;
         var matches = document?.Entities.Concat(npcItems.Select(i => i.Entity)).Where(e => e.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-            e.ModelPaths.Any(p => p.Contains(search, StringComparison.OrdinalIgnoreCase))).ToArray() ?? [];
+            e.ModelPaths.Any(p => p.Contains(search, StringComparison.OrdinalIgnoreCase)) || e.PrefabPath?.Contains(search, StringComparison.OrdinalIgnoreCase) == true).ToArray() ?? [];
         changingSelection = true;
         try { Hierarchy.ItemsSource = matches; }
         finally { changingSelection = false; }
@@ -590,7 +590,7 @@ public partial class MainWindow : Window
         var entity = Selected;
         SelectedName.Text = entity?.Name ?? L.T("Select an entity");
         SelectedInfo.Text = entity is null ? "" : entity.GameplayUnitIndex is { } npcIndex ? L.T("DS1 unit #{0} · gameplay placement", npcIndex) : L.T("ID {0}\n{1} preserved components", entity.Id, entity.Components.Count);
-        ModelLabel.Text = entity?.GameplayUnitIndex is not null ? L.T("DS1 character · static reference pose") : entity?.PreviewModel ?? L.T("No static model");
+        ModelLabel.Text = entity?.GameplayUnitIndex is not null ? L.T("DS1 character · static reference pose") : entity?.PreviewModel ?? entity?.PrefabPath ?? L.T("No static model");
         RawJson.Text = entity?.RawJson ?? "";
         TransformPanel.IsEnabled = loading is null && entity?.CanTransform == true && !entity.HasParent && entity.GameplayUnitIndex is null && !Scene.IsLocked(entity);
         if (entity is not null && Scene.IsLocked(entity))

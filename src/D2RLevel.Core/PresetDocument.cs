@@ -61,6 +61,8 @@ public sealed class PresetEntity
         _ => []
     }).Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     public string? PreviewModel => ModelPaths.FirstOrDefault();
+    /// <summary>The prefab JSON this entity places, if any. Its contents live in that file, not in this preset.</summary>
+    public string? PrefabPath => Components.FirstOrDefault(c => c["type"]?.GetValue<string>() == "PrefabPlacementDefinitionComponent")?["prefab"]?.GetValue<string>() is { Length: > 0 } path ? path : null;
     public EntityTransform Transform
     {
         get
