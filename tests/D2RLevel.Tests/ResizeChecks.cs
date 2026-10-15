@@ -72,6 +72,27 @@ internal static class ResizeChecks
             "terrain repeats edge to edge into the new space");
         check(File.Exists(jsonPath + ".bak") && File.Exists(mapPath + ".bak") && File.Exists(jsonPath + PlacementLinks.Suffix + ".bak"), "previous scene files are kept as .bak");
 
+        // A mesh narrower than the map is laid at its own width, so copies meet instead of leaving strips between them.
+        var narrow = new TerrainExtent(0, 0, 30, 40);
+        var cover = TerrainTiling.CoverOffsets(narrow, [], 8, 4, 10);
+        check(cover.SequenceEqual([new Vector3d(30, 0, 0), new Vector3d(60, 0, 0)]), "terrain copies are spaced by the mesh, not the map");
+        check(TerrainTiling.CoverOffsets(narrow, [narrow.Offset(30, 0), narrow.Offset(60, 0)], 8, 4, 10).Length == 0, "covered maps need no copies");
+        // An earlier resize spaced one copy by the map width (40) instead of the mesh width (30).
+        var off = narrow.Offset(40, 0);
+        check(TerrainTiling.Misaligned(narrow, [("aligned", narrow.Offset(30, 0)), ("off", off), ("stacked", narrow.Offset(30, 0)), ("shifted", narrow.Offset(-60, 40))])
+            .SequenceEqual(["off", "stacked"]), "copies off the mesh grid or on another copy are misaligned");
+        check(TerrainTiling.CoverOffsets(narrow, [narrow.Offset(30, 0), off], 8, 4, 10).SequenceEqual([new Vector3d(60, 0, 0)]), "gap filling counts copies it is told to keep");
+
+        // Repair as one edit: remove the misaligned copy, lay grid copies, and undo both together.
+        var repairJson = PresetDocument.Load(jsonPath);
+        var terrain = repairJson.TerrainEntities();
+        var repair = repairJson.RepairTerrain(terrain[0], [terrain[1]], [new Vector3d(-40, 0, 0)]);
+        check(repair.Added.Length == 1 && repair.Removed.Length == 1 && repairJson.TerrainEntities().Length == terrain.Length
+            && repairJson.TerrainEntities()[^1].Transform.Position == terrain[0].Transform.Position with { X = terrain[0].Transform.Position.X - 40 }, "terrain repair swaps copies in one edit");
+        repairJson.Undo();
+        check(repairJson.TerrainEntities().SequenceEqual(terrain) && !repairJson.IsDirty, "undo restores the original terrain copies");
+        throws(() => repairJson.RepairTerrain(terrain[0], [terrain[0]], []), "terrain repair never removes its source");
+
         File.WriteAllText(jsonPath + LevelProject.Suffix, "{}");
         var unchanged = File.ReadAllBytes(mapPath);
         throws(() => LevelResizer.Apply(data, scene, new(0, 0, 1, 0), GroundFill.Empty, 0, false), "invalid project stops the resize");

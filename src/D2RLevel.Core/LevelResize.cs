@@ -46,7 +46,7 @@ public sealed partial class Ds1CollisionDocument
         growth.Validate(Width, Height);
         if (fill == GroundFill.Tile && (tile == 0 || (tile & 255) == 0)) throw new ArgumentException("Choose a floor tile to fill new ground with.");
         if (growth.ShiftsContent && GameplayWarning is not null)
-            throw new InvalidOperationException(GameplayWarning + " Placements cannot be shifted, so grow this map only on its X end and Y end edges.");
+            throw new InvalidOperationException(GameplayWarning + " Placements cannot be shifted, so grow this map only toward the lower-left and lower-right (X end and Y end).");
         int width = growth.NewWidth(Width), height = growth.NewHeight(Height);
         int start = Walls[0].Offset, size = Width * Height * 4, arrays = (gameplayOffset - start) / size;
         int firstFloor = Floors[0].Offset;
@@ -126,13 +126,8 @@ public sealed partial class PresetDocument
         }
     }
 
-    /// <summary>Copies of each top-level terrain entity at every offset, as one edit. Returns the number of copies.</summary>
-    internal int RepeatTerrain(IReadOnlyList<Vector3d> offsets)
-    {
-        var terrain = Entities.Where(e => e.IsTerrain && !e.HasParent && e.CanTransform).ToArray();
-        if (terrain.Length == 0 || offsets.Count == 0) return 0;
-        return InsertCopies(terrain, terrain, offsets).Copies.Length;
-    }
+    /// <summary>The standalone terrain entities; the first is the level's own mesh, later ones are copies laid beside it.</summary>
+    public PresetEntity[] TerrainEntities() => Entities.Where(e => e.IsTerrain && !e.HasParent && e.CanTransform).ToArray();
 }
 
 public sealed record LevelResizeResult(WorkspaceScene Scene, int Width, int Height, int TerrainCopies);
@@ -146,7 +141,10 @@ public static class LevelResizer
     /// <summary>More copies than this means the terrain mesh is tiny next to the map; repeating it would not help.</summary>
     public const int MaximumTerrainCopies = 64;
 
-    public static LevelResizeResult Apply(string root, WorkspaceScene scene, LevelGrowth growth, GroundFill fill, uint tile, bool repeatTerrain)
+    /// <param name="terrainExtents">Measured ground extents of terrain meshes before the resize, keyed by entity id. Unmeasured
+    /// terrain is assumed to span the DS1 grid from its origin, which leaves gaps when the mesh is a different size.</param>
+    public static LevelResizeResult Apply(string root, WorkspaceScene scene, LevelGrowth growth, GroundFill fill, uint tile, bool repeatTerrain,
+        IReadOnlyDictionary<string, TerrainExtent>? terrainExtents = null)
     {
         string jsonPath = SceneWorkspace.Inside(root, scene.JsonPath), ds1Path = SceneWorkspace.Inside(root, scene.Ds1Path);
         string linksPath = SceneWorkspace.Inside(root, jsonPath + PlacementLinks.Suffix), projectPath = SceneWorkspace.Inside(root, jsonPath + LevelProject.Suffix);
@@ -162,19 +160,15 @@ public static class LevelResizer
         var shift = new Vector3d(growth.Left * units, 0, growth.Top * units);
         if (growth.ShiftsContent) json.ShiftRoots(shift);
         int copies = 0;
-        if (repeatTerrain)
+        if (repeatTerrain && json.TerrainEntities() is [var source, ..] terrain)
         {
-            // Whole copies of the original mesh, laid edge to edge until they cover every added tile.
-            double spanX = ds1.Width * units, spanZ = ds1.Height * units;
-            int west = Ceiling(growth.Left, ds1.Width), east = Ceiling(growth.Right, ds1.Width);
-            int north = Ceiling(growth.Top, ds1.Height), south = Ceiling(growth.Bottom, ds1.Height);
-            var offsets = new List<Vector3d>();
-            for (int j = -north; j <= south; j++)
-                for (int i = -west; i <= east; i++)
-                    if (i != 0 || j != 0) offsets.Add(new(i * spanX, 0, j * spanZ));
-            if (offsets.Count > MaximumTerrainCopies)
-                throw new InvalidOperationException($"Repeating the terrain would need {offsets.Count} copies (limit {MaximumTerrainCopies}). Grow in smaller steps or leave the HD terrain as it is.");
-            copies = json.RepeatTerrain(offsets);
+            // Whole copies of the level's own mesh, a mesh width apart, wherever a tile of the grown map has no terrain.
+            TerrainExtent Extent(PresetEntity e) => (terrainExtents?.GetValueOrDefault(e.Id)?.Offset(shift.X, shift.Z))
+                ?? TerrainExtent.FromGrid(e.Transform.Position, ds1.Width, ds1.Height, units);
+            var offsets = TerrainTiling.CoverOffsets(Extent(source), terrain.Skip(1).Select(Extent), grown.Width, grown.Height, units);
+            if (offsets.Length > MaximumTerrainCopies)
+                throw new InvalidOperationException($"Repeating the terrain would need {offsets.Length} copies (limit {MaximumTerrainCopies}). Grow in smaller steps or leave the HD terrain as it is.");
+            if (offsets.Length > 0) copies = json.RepairTerrain(source, [], offsets).Added.Length;
         }
 
         var paths = new List<string> { jsonPath, ds1Path };
@@ -201,8 +195,6 @@ public static class LevelResizer
         });
         return new(scene, grown.Width, grown.Height, copies);
     }
-
-    private static int Ceiling(int added, int span) => added == 0 ? 0 : (added + span - 1) / span;
 }
 
 public sealed partial class PlacementLinks

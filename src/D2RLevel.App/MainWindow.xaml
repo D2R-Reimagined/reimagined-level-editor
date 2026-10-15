@@ -26,6 +26,7 @@
               <MenuItem Header="{l:T 'Gameplay prefabs…'}" Click="GameplayPrefabs_Click"/>
               <MenuItem Header="{l:T 'Draw ground / edit gameplay…'}" Click="Floors_Click"/>
               <MenuItem Header="{l:T 'Resize level…'}" Click="ResizeLevel_Click" ToolTip="{l:T 'Add tiles around the level and fill the new space with ground.'}"/>
+              <MenuItem Header="{l:T 'Fill terrain gaps…'}" Click="FillTerrainGaps_Click" ToolTip="{l:T 'Lay copies of the terrain mesh edge to edge wherever the map has no HD ground, and line up copies that sit off the grid.'}"/>
             </MenuItem>
             <MenuItem Header="{l:T '_View'}">
               <MenuItem Header="{l:T 'Level properties'}" Click="LevelProperties_Click"/>
@@ -236,7 +237,7 @@
               <Button Content="{l:T 'Rotate Y + 15°'}" Click="Rotate_Click"/>
             </StackPanel>
             <Button Content="{l:T 'Frame selected'}" Click="Frame_Click"/>
-            <Button x:Name="DeleteModelButton" Content="{l:T 'Delete object'}" Click="DeleteModel_Click" ToolTip="{l:T 'Delete this model, its linked DS1 unit and owned collision. Shared collision stays. Undo restores everything.'}"/>
+            <Button x:Name="DeleteModelButton" Content="{l:T 'Delete object'}" Click="DeleteModel_Click" ToolTip="{l:T 'Delete the selected models (or press Delete), their linked DS1 units and owned collision. Shared collision stays. Undo restores everything.'}"/>
             <TextBlock Text="{l:T 'Linked models move their assigned DS1 unit or collision footprint. Unlinked models change HD visuals only. Warps and DT1 collision are not moved.'}" Foreground="#D9B580" TextWrapping="Wrap" Margin="0,12"/>
             <Expander Header="{l:T 'Preserved entity JSON'}" Foreground="#C7D6E5"><TextBox x:Name="RawJson" IsReadOnly="True" FontFamily="Consolas" FontSize="11" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/></Expander>
           </StackPanel>

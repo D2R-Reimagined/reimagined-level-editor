@@ -35,6 +35,21 @@ internal static class LinkChecks
             check(ud.Serialize().SequenceEqual(unchanged) && uj.Entities.Count == 1, "unlinked model deletion leaves DS1 bytes unchanged");
         }
         {
+            var (bj, bd, bl) = Fixture(); var first = bj.Entities[0]; var second = bj.Entities[1];
+            bl.LinkFootprint(first, [new(1, 1)], 10, false); bl.LinkFootprint(second, [new(2, 1)], 10, false);
+            bl.LinkUnit(first, 0, 10); bl.LinkUnit(second, 1, 10);
+            var jsonBefore = bj.Serialize(); var ds1Before = bd.Serialize();
+            ModelDeletion.Delete(bj, bl, [first, second]);
+            check(bj.Entities.Count == 0 && bd.Units.Count == 0 && !Blocked(bd, 1, 1) && bl.Links.Count == 0, "bulk delete removes every model, linked unit and owned collision");
+            bj.Undo();
+            check(bj.Serialize().SequenceEqual(jsonBefore) && bd.Serialize().SequenceEqual(ds1Before) && bl.Find(first) is not null && bl.Find(second) is not null, "one undo restores a whole bulk deletion exactly");
+            bj.Redo(); check(bj.Entities.Count == 0 && bd.Units.Count == 0, "redo reapplies the whole bulk deletion");
+            bj.Undo();
+            var (other, _, _) = Fixture();
+            throws(() => ModelDeletion.Delete(bj, bl, [first, other.Entities[0]]), "bulk delete rejects a model from another document");
+            check(bj.Serialize().SequenceEqual(jsonBefore) && bd.Serialize().SequenceEqual(ds1Before), "rejected bulk delete leaves both documents unchanged");
+        }
+        {
             var (gj, gd, gl) = Fixture(); var a = gj.Entities[0]; var bGroup = gj.Entities[1];
             var stationary = gj.AddModel("data/hd/stationary.model", new(10,0,10));
             gl.LinkFootprint(a, [new(0,1),new(1,1)],10,false);

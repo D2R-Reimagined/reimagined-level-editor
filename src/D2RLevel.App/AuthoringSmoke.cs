@@ -68,6 +68,16 @@ public partial class MainWindow
         var unit = units > 0 ? map.Units[0] : null;
         var usual = CommonFloor(pairedScene) ?? throw new InvalidOperationException("Template has no drawable floor.");
         uint fill = Ds1CollisionDocument.FloorKey(usual.Main, usual.Sub);
+        // The dialog runs its own modal loop; fill each direction, capture it, and cancel from inside that loop.
+        _ = Dispatcher.InvokeAsync(async () =>
+        {
+            var dialog = OwnedWindows.OfType<Window>().Last(w => w.Title == L.T("Resize level"));
+            var boxes = Descendants(dialog).OfType<TextBox>().ToArray();
+            foreach (var (box, n) in boxes.Zip(new[] { "3", "2", "5", "4" })) box.Text = n;
+            await CaptureAuthoring(dialog, Path.Combine(output, "resize-dialog.png"));
+            dialog.DialogResult = false;
+        }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        if (ResizeDialog(map) is not null) throw new InvalidOperationException("Canceled resize dialog returned a choice.");
         var result = await ResizeOpenLevel(session, new(3, 2, 4, 5), GroundFill.Tile, fill, true);
         var grown = pairedScene?.Collision?.Document ?? throw new InvalidOperationException("Resized level did not reopen with its DS1: " + pairedStatus);
         if (grown.Width != width + 7 || grown.Height != height + 7 || result.Width != grown.Width || workspaceSession is null || placementLinks?.Warning is not null)
@@ -78,11 +88,49 @@ public partial class MainWindow
             throw new InvalidOperationException("New ground was not filled.");
         if (document.Entities.Count != entities + result.TerrainCopies || result.TerrainCopies == 0)
             throw new InvalidOperationException($"HD terrain was not repeated: {result.TerrainCopies} copies.");
+        // Measured from the reopened meshes: the copies must meet edge to edge and leave no tile without ground.
+        var measured = document.TerrainEntities().Select(TerrainExtentOf).OfType<TerrainExtent>().ToArray();
+        int gaps = TerrainTiling.CoverOffsets(measured[0], measured.Skip(1), grown.Width, grown.Height, placementLinks!.Calibration.UnitsPerTile).Length;
+        int misaligned = TerrainTiling.Misaligned(measured[0], measured.Skip(1).Select((m, i) => (i, m))).Length;
+        if (gaps != 0 || misaligned != 0) throw new InvalidOperationException($"Repeated terrain left {gaps} uncovered grid cells and {misaligned} misaligned copies.");
+        string repair = await VerifyTerrainRepair(output, grown);
         WindowState = WindowState.Normal; Width = 1400; Height = 900;
         await CaptureAuthoring(this, Path.Combine(output, "resized.png"));
         Floors_Click(this, new());
         if (ds1Window is { } ground) { await CaptureAuthoring(ground, Path.Combine(output, "resized-ground.png")); ground.Close(); }
-        return $"PASS resize: {width}×{height} → {grown.Width}×{grown.Height}, floor {usual.Main}:{usual.Sub} fill, {units} placement(s) shifted, {result.TerrainCopies} terrain copies, links intact after reopen.";
+        return $"PASS resize: {width}×{height} → {grown.Width}×{grown.Height}, floor {usual.Main}:{usual.Sub} fill, {units} placement(s) shifted, {result.TerrainCopies} terrain copies, links intact after reopen.\n{repair}";
+    }
+    /// <summary>Pushes one terrain copy off the grid, as older resizes did, then runs Fill terrain gaps through its dialog and undoes it all.</summary>
+    private async Task<string> VerifyTerrainRepair(string output, Ds1CollisionDocument map)
+    {
+        var copy = document!.TerrainEntities()[^1]; var start = copy.Transform;
+        double units = placementLinks!.Calibration.UnitsPerTile;
+        document.SetTransform(copy, start with { Position = start.Position with { X = start.Position.X + units * 3.5 } });
+        Scene.UpdateEntity(copy);
+        _ = Dispatcher.InvokeAsync(async () =>
+        {
+            var dialog = OwnedWindows.OfType<Window>().Last(w => w.Title == L.T("Fill terrain gaps"));
+            await CaptureAuthoring(dialog, Path.Combine(output, "terrain-gaps-dialog.png"));
+            dialog.DialogResult = true;
+        }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        FillTerrainGaps_Click(this, new());
+        var measured = document.TerrainEntities().Select(TerrainExtentOf).OfType<TerrainExtent>().ToArray();
+        int gaps = TerrainTiling.CoverOffsets(measured[0], measured.Skip(1), map.Width, map.Height, units).Length;
+        int misaligned = TerrainTiling.Misaligned(measured[0], measured.Skip(1).Select((m, i) => (i, m))).Length;
+        if (gaps != 0 || misaligned != 0 || document.TerrainEntities().Contains(copy))
+            throw new InvalidOperationException($"Fill terrain gaps left {gaps} uncovered cells and {misaligned} misaligned copies; status: {Status.Text}");
+        await CaptureAuthoring(this, Path.Combine(output, "terrain-repaired.png"));
+        document.Undo(); document.Undo();
+        if (document.IsDirty || copy.Transform != start || !document.TerrainEntities().Contains(copy)) throw new InvalidOperationException("Undo did not restore the terrain.");
+        return $"PASS terrain repair: misaligned copy replaced on the mesh grid, no uncovered tiles, undo restores the scene.";
+    }
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(parent).OfType<DependencyObject>())
+        {
+            yield return child;
+            foreach (var inner in Descendants(child)) yield return inner;
+        }
     }
     private async Task CaptureAuthoring(Window window, string path)
     { await Dispatcher.InvokeAsync(() => {}, System.Windows.Threading.DispatcherPriority.Render); window.UpdateLayout(); await CaptureElement(window, path); }

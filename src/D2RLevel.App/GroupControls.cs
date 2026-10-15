@@ -57,7 +57,7 @@ public partial class MainWindow
         GroupButton.IsEnabled = loading is null && assetGroups?.Warning is null && members.Length > 1 && members.All(GroupMovement.CanGroup);
         UngroupButton.IsEnabled = loading is null && members.Any(e => assetGroups?.Find(e) is not null);
         if (members.Length > 1 && members.Any(e => !GroupMovement.CanGroup(e))) GroupStatus.Text = L.T("Select only unparented HD models for group movement. NPCs and terrain must be selected separately.");
-        if (members.Length > 1) { TransformPanel.IsEnabled = false; DeleteModelButton.IsEnabled = false; }
+        if (members.Length > 1) { TransformPanel.IsEnabled = false; DeleteModelButton.IsEnabled = loading is null && members.Any(CanDelete); }
     }
     private void Group_Click(object sender, RoutedEventArgs e)
     {

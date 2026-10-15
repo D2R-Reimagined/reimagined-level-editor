@@ -659,6 +659,13 @@ public partial class MainWindow : Window
     private readonly HashSet<PresetEntity> removedModels = new();
     private void SyncHistory(PresetEntity entity)
     {
+        SyncPresence(entity);
+        Filter(); Hierarchy.SelectedItem = document!.Entities.Contains(entity) ? entity : null;
+        PopulateInspector(); RefreshState();
+    }
+    /// <summary>Shows or hides an entity's scene geometry to match whether the document still contains it.</summary>
+    private void SyncPresence(PresetEntity entity)
+    {
         if (!document!.Entities.Contains(entity))
         {
             if (Scene.GetItem(entity) is { } removed) addedModels[entity] = removed;
@@ -669,8 +676,6 @@ public partial class MainWindow : Window
             if (removedModels.Remove(entity) && addedModels.TryGetValue(entity, out var item)) Scene.AddItem(item);
             Scene.UpdateEntity(entity);
         }
-        Filter(); Hierarchy.SelectedItem = document.Entities.Contains(entity) ? entity : null;
-        PopulateInspector(); RefreshState();
     }
     private void Undo_Click(object sender, RoutedEventArgs e) { Scene.CancelDrag(); if (document?.Undo() is { } entity) SyncHistory(entity); }
     private void Redo_Click(object sender, RoutedEventArgs e) { Scene.CancelDrag(); if (document?.Redo() is { } entity) SyncHistory(entity); }
@@ -702,7 +707,7 @@ public partial class MainWindow : Window
         UpdateWorkspaceChevrons();
         SaveCopyButton.Visibility = workspaceSession is not null || exploringWorkspace ? Visibility.Collapsed : Visibility.Visible;
         SavePairButton.Content = workspaceSession is not null ? L.T("Save Scene") : L.T("Save linked pair…");
-        DeleteModelButton.IsEnabled = !busy && SelectedEntities.Length == 1 && Selected is { HasParent: false, IsTerrain: false, SourceAsset: not null };
+        DeleteModelButton.IsEnabled = !busy && (SelectedEntities.Length > 1 ? SelectedEntities.Any(CanDelete) : Selected is { HasParent: false, IsTerrain: false, SourceAsset: not null });
         RefreshLinkStatus();
         bool dirty = document?.IsDirty == true || connectionEdits?.IsDirty == true || placementLinks?.HasMetadataChanges == true || (document?.History.Shared == true && pairedScene?.Collision?.Document.IsDirty == true);
         Title = "Reimagined Level Editor · " + (document is null ? L.T("Workspace") : Path.GetFileName(document.SourcePath)) + (dirty ? " *" : "");

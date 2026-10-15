@@ -9,6 +9,29 @@ namespace D2RLevel.App;
 // A placement reference on the original terrain geometry, not an HD biome shader.
 public static class TerrainPreview
 {
+    /// <summary>The world span the floor reference image covers, set on that material so copies can be re-projected.</summary>
+    private static readonly DependencyProperty FloorSpanProperty =
+        DependencyProperty.RegisterAttached("FloorSpan", typeof(Size), typeof(TerrainPreview), new PropertyMetadata(Size.Empty));
+
+    /// <summary>
+    /// A terrain item for a copy placed <paramref name="offset"/> from <paramref name="source"/>. Floor reference parts are
+    /// re-projected so the copy shows the DS1 ground at its own position rather than the ground under the source.
+    /// </summary>
+    public static SceneItem Moved(SceneItem source, PresetEntity entity, Vector3d offset)
+    {
+        var model = new Model3DGroup();
+        foreach (GeometryModel3D part in source.Geometry.Children)
+        {
+            if (part.Material.GetValue(FloorSpanProperty) is not Size { IsEmpty: false } span) { model.Children.Add(part); continue; }
+            var mesh = ((MeshGeometry3D)part.Geometry).Clone();
+            for (int i = 0; i < mesh.TextureCoordinates.Count; i++)
+                mesh.TextureCoordinates[i] = new(mesh.TextureCoordinates[i].X + offset.X / span.Width, mesh.TextureCoordinates[i].Y + offset.Z / span.Height);
+            model.Children.Add(new GeometryModel3D(mesh, part.Material) { BackMaterial = part.BackMaterial });
+        }
+        model.Freeze();
+        return source with { Entity = entity, Geometry = model };
+    }
+
     public static LoadedScene Apply(LoadedScene loaded, LegacyFloorScene? scene, CancellationToken token)
     {
         if (!loaded.Items.Any(i => i.Entity.IsTerrain && !i.IsPlaceholder)) return loaded;
@@ -39,7 +62,8 @@ public static class TerrainPreview
             }
         }
         var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4); bitmap.Freeze();
-        var material = new DiffuseMaterial(new ImageBrush(bitmap) { ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, 1, 1) }); material.Freeze();
+        var material = new DiffuseMaterial(new ImageBrush(bitmap) { ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, 1, 1) });
+        material.SetValue(FloorSpanProperty, new Size(scene.Map.Width * 10d, scene.Map.Height * 10d)); material.Freeze();
         var items = loaded.Items.Select(item =>
         {
             if (!item.Entity.IsTerrain || item.IsPlaceholder) return item;

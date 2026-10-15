@@ -27,7 +27,9 @@ public partial class MainWindow
         if (subject is PrefabPlacement prefab) SyncPrefab(prefab);
         if (subject is ModelDuplication duplication) SyncDuplication(duplication);
         if (subject is ModelPlacement placement) SyncPlacement(placement);
+        if (subject is TerrainRepair repair) SyncTerrainRepair(repair);
         if (subject is PresetEntity[] members) RefreshGroupMove(members);
+        if (subject is ModelDeletion deletion) SyncDeletion(deletion);
         if (document?.History.Shared != true) return;
         try
         {
