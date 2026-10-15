@@ -58,6 +58,7 @@ internal static partial class RenderingChecks
         CameraChecks();
         PlacementChecks();
         GizmoChecks();
+        ContactChecks();
         DuplicationRenderingChecks();
         BoxSelectionChecks();
         BrushChecks();

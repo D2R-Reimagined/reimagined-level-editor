@@ -43,11 +43,47 @@ public static class SceneWorkspace
         }
         return result.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
+
+    /// <summary>
+    /// Replaces several files together: each is staged beside its target, <paramref name="verify"/> checks the
+    /// staged paths, and only then are targets replaced (keeping .bak copies) in order. A target that changed
+    /// since <paramref name="originals"/> was read stops the publish, and files already replaced are restored.
+    /// </summary>
+    internal static void Publish(string[] paths, byte[]?[] originals, byte[][] data, Action<string[]> verify)
+    {
+        static bool Equal(byte[]? a, byte[]? b) => a is null ? b is null : b is not null && a.SequenceEqual(b);
+        string[] staged = paths.Select(p => p + "." + Guid.NewGuid().ToString("N") + ".tmp").ToArray();
+        int written = 0;
+        try
+        {
+            for (int i = 0; i < paths.Length; i++) { Directory.CreateDirectory(Path.GetDirectoryName(paths[i])!); File.WriteAllBytes(staged[i], data[i]); }
+            verify(staged);
+            for (int i = 0; i < paths.Length; i++)
+            {
+                if (!Equal(File.Exists(paths[i]) ? File.ReadAllBytes(paths[i]) : null, originals[i])) throw new IOException("File changed during save: " + paths[i]);
+                if (originals[i] is not null) File.Replace(staged[i], paths[i], paths[i] + ".bak");
+                else File.Move(staged[i], paths[i]);
+                written++;
+            }
+        }
+        catch (Exception failure)
+        {
+            var errors = new List<Exception> { failure };
+            for (int i = written - 1; i >= 0; i--)
+                try { if (originals[i] is { } original) File.WriteAllBytes(paths[i], original); else File.Delete(paths[i]); }
+                catch (Exception rollback) { errors.Add(rollback); }
+            if (errors.Count > 1) throw new AggregateException("Save failed and restoration was incomplete. Recover the scene using its .bak files.", errors);
+            throw;
+        }
+        finally { foreach (var stage in staged) if (File.Exists(stage)) File.Delete(stage); }
+    }
 }
 
 public sealed class WorkspaceSceneSession
 {
     private readonly string root;
+    /// <summary>The workspace directory every scene file must stay inside.</summary>
+    public string Root => root;
     public WorkspaceScene Scene { get; }
     private readonly string[] paths;
     private byte[]?[] snapshots;
@@ -85,36 +121,16 @@ public sealed class WorkspaceSceneSession
             connections.VerifyUnchanged();
             savePaths = [.. savePaths, connections.TargetPath]; originals = [.. originals, connections.TargetSnapshot]; data = [.. data, connections.Serialize()];
         }
-        string[] staged = savePaths.Select(p => p + "." + Guid.NewGuid().ToString("N") + ".tmp").ToArray();
-        int written = 0;
-        try
+        SceneWorkspace.Publish(savePaths, originals, data, staged =>
         {
-            for (int i = 0; i < savePaths.Length; i++) { Directory.CreateDirectory(Path.GetDirectoryName(savePaths[i])!); File.WriteAllBytes(staged[i], data[i]); }
             // Verify staged map parsers before replacing either live scene file.
             if (!PresetDocument.Load(staged[0]).Serialize().SequenceEqual(data[0]) || !Ds1CollisionDocument.Load(staged[1]).Serialize().SequenceEqual(data[1]))
                 throw new InvalidDataException("Staged scene failed verification.");
             var verified = new PlacementLinks(PresetDocument.Load(staged[0]), Ds1CollisionDocument.Load(staged[1]), staged[2]);
             if (verified.Warning is not null) throw new InvalidDataException(verified.Warning);
             if (connections?.IsDirty == true) connections.VerifyUnchanged();
-            for (int i = 0; i < savePaths.Length; i++)
-            {
-                if (!Equal(Read(savePaths[i]), originals[i])) throw new IOException("File changed during save: " + savePaths[i]);
-                if (originals[i] is not null) File.Replace(staged[i], savePaths[i], savePaths[i] + ".bak");
-                else File.Move(staged[i], savePaths[i]);
-                written++;
-            }
-            snapshots = data.Take(3).Cast<byte[]?>().ToArray(); json.MarkSaved(); ds1.MarkSaved(); links.MarkWorkspaceSaved();
-            connections?.MarkSaved(paths[1], data[1]);
-        }
-        catch (Exception failure)
-        {
-            var errors = new List<Exception> { failure };
-            for (int i = written - 1; i >= 0; i--)
-                try { if (originals[i] is { } original) File.WriteAllBytes(savePaths[i], original); else File.Delete(savePaths[i]); }
-                catch (Exception rollback) { errors.Add(rollback); }
-            if (errors.Count > 1) throw new AggregateException("Save failed and restoration was incomplete. Recover the scene using its .bak files.", errors);
-            throw;
-        }
-        finally { foreach (var stage in staged) if (File.Exists(stage)) File.Delete(stage); }
+        });
+        snapshots = data.Take(3).Cast<byte[]?>().ToArray(); json.MarkSaved(); ds1.MarkSaved(); links.MarkWorkspaceSaved();
+        connections?.MarkSaved(paths[1], data[1]);
     }
 }

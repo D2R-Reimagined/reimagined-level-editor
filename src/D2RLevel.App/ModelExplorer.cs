@@ -34,12 +34,18 @@ public sealed class ModelExplorer : Window
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? previewLoad;
     private ModelEntry[] catalog = [];
+    /// <summary>Model list width, kept across explorer windows for the session.</summary>
+    private static double listWidth = 430;
     public SceneViewport Preview { get; } = new();
     public int ModelCount => catalog.Length;
     public bool PreviewLoaded { get; private set; }
     public Task Ready { get; private set; } = Task.CompletedTask;
     public Task PreviewReady { get; private set; } = Task.CompletedTask;
     internal bool CanAddPreview => add.IsEnabled;
+    /// <summary>True when every part of the static preview is shaded with a texture rather than the flat fallback.</summary>
+    internal bool PreviewTextured => previewItem?.Geometry.Children.OfType<System.Windows.Media.Media3D.GeometryModel3D>()
+        .All(m => m.Material is System.Windows.Media.Media3D.DiffuseMaterial { Brush: ImageBrush }) == true;
+    internal string PreviewDetails => details.Text;
     internal void AddPreviewToScene() { if (add.IsEnabled) add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); }
 
     public ModelExplorer(AssetResolver resolver, PresetDocument? document, Action<PresetEntity> select, Action<string, SceneItem>? addModel = null)
@@ -61,7 +67,17 @@ public sealed class ModelExplorer : Window
         DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
         var animationBar = BuildAnimationBar();
         DockPanel.SetDock(animationBar, Dock.Top); root.Children.Add(animationBar);
-        var left = new DockPanel { Width = 430 }; DockPanel.SetDock(left, Dock.Left); root.Children.Add(left);
+        // The list and preview share a splitter so long asset paths can be widened into view.
+        var body = new Grid(); root.Children.Add(body);
+        var listColumn = new ColumnDefinition { Width = new GridLength(listWidth), MinWidth = 200 };
+        body.ColumnDefinitions.Add(listColumn);
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 200 });
+        var left = new DockPanel(); body.Children.Add(left);
+        var splitter = new GridSplitter { Width = 5, HorizontalAlignment = HorizontalAlignment.Stretch, Background = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x21)), ToolTip = L.T("Drag to resize the model list") };
+        Grid.SetColumn(splitter, 1); body.Children.Add(splitter);
+        Grid.SetColumn(Preview, 2);
+        splitter.DragCompleted += (_, _) => listWidth = listColumn.ActualWidth;
         var searchLabel = new TextBlock { Text = L.T("Search model names or folders"), Margin = new Thickness(6) };
         DockPanel.SetDock(searchLabel, Dock.Top); left.Children.Add(searchLabel);
         DockPanel.SetDock(search, Dock.Top); left.Children.Add(search);
@@ -69,7 +85,7 @@ public sealed class ModelExplorer : Window
         list.DisplayMemberPath = nameof(ModelEntry.Path);
         VirtualizingPanel.SetIsVirtualizing(list, true);
         ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Auto);
-        root.Children.Add(Preview);
+        body.Children.Add(Preview);
         search.TextChanged += (_, _) => Filter();
         list.SelectionChanged += (_, _) => { if (list.SelectedItem is ModelEntry entry) PreviewReady = LoadPreview(entry.Path); };
         find.Click += (_, _) =>

@@ -37,9 +37,17 @@ public partial class MainWindow
         // A non-character model must not claim to be animated.
         await explorer.ShowModel("data/hd/env/model/act1/outdoors/act1_outdoors_rivers/act1_outdoors_river_01.model");
         string staticNote = explorer.HasAnimations ? "STATIC MODEL WAS ANIMATED" : "static model correctly reported unanimated";
-        explorer.Close();
-        if (explorer.HasAnimations) throw new InvalidOperationException("A static prop was treated as an animated character.");
+        if (explorer.HasAnimations) { explorer.Close(); throw new InvalidOperationException("A static prop was treated as an animated character."); }
 
-        File.WriteAllText(Path.Combine(output, "smoke.txt"), report + "\nPASS " + staticNote + "\n");
+        // Terrain has no albedo of its own; it is shaded from its biome's base layer.
+        const string terrain = "data/hd/env/cluster/act2/outdoors/dune/dune_3/terrain.model";
+        await explorer.ShowModel(terrain);
+        await Capture(explorer, Path.Combine(output, "terrain-explorer.png"));
+        bool terrainTextured = explorer.PreviewLoaded && explorer.PreviewTextured;
+        string terrainDetails = explorer.PreviewDetails;
+        explorer.Close();
+        if (!terrainTextured) throw new InvalidOperationException($"Terrain preview was not textured: {terrainDetails}");
+
+        File.WriteAllText(Path.Combine(output, "smoke.txt"), report + "\nPASS " + staticNote + "\nPASS terrain preview textured from its biome\n");
     }
 }

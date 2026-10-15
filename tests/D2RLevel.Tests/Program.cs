@@ -252,7 +252,7 @@ if (args.Length > 0 && args[0] == "--probe")
         Console.WriteLine("PASS D2R per-mesh VertexScale contract");
     }
     Console.WriteLine($"PASS model: {model.Parts.Count} parts, {model.Parts.Sum(p => p.Indices.Length / 3)} triangles");
-    foreach (var part in model.Parts) Console.WriteLine($"{part.Name}: {part.Positions.Length / 3} vertices, coordinate range {part.Positions.Min():F3} .. {part.Positions.Max():F3}, albedo={part.AlbedoPath}");
+    foreach (var part in model.Parts) Console.WriteLine($"{part.Name}: {part.Positions.Length / 3} vertices, coordinate range {part.Positions.Min():F3} .. {part.Positions.Max():F3}, albedo={part.AlbedoPath}, surface={part.Surface} {part.SurfaceDetail}");
     return;
 }
 if (args.Length > 0 && args[0] == "--texture")
@@ -297,12 +297,14 @@ try
     PathChecks.Run(folder, Check, Throws);
     CalibrationChecks.Run(folder, Check, Throws);
     AuthoringChecks.Run(folder, Check, Throws);
+    ResizeChecks.Run(folder, Check, Throws);
     LevelPropertiesChecks.Run(folder, Check, Throws);
     GameplayCatalogChecks.Run(folder, Check, Throws);
     EntranceChecks.Run(folder, Check, Throws);
     TilesetChecks.Run(folder, Check, Throws);
     PrefabChecks.Run(folder, Check, Throws);
     DuplicationChecks.Run(folder, Check, Throws);
+    SelectionChecks.Run(folder, Check, Throws);
     LocalizationChecks.Run(folder, Check, Throws);
     // The real template must match the real sources, so a wording change cannot land without updating it.
     if (TranslationsAudit.FindRepositoryRoot(Directory.GetCurrentDirectory(), AppContext.BaseDirectory) is { } repoRoot)

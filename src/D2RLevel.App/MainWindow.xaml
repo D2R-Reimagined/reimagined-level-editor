@@ -25,6 +25,7 @@
               <MenuItem Header="{l:T 'Entrances and exits…'}" Click="Entrances_Click"/>
               <MenuItem Header="{l:T 'Gameplay prefabs…'}" Click="GameplayPrefabs_Click"/>
               <MenuItem Header="{l:T 'Draw ground / edit gameplay…'}" Click="Floors_Click"/>
+              <MenuItem Header="{l:T 'Resize level…'}" Click="ResizeLevel_Click" ToolTip="{l:T 'Add tiles around the level and fill the new space with ground.'}"/>
             </MenuItem>
             <MenuItem Header="{l:T '_View'}">
               <MenuItem Header="{l:T 'Level properties'}" Click="LevelProperties_Click"/>
@@ -53,6 +54,7 @@
             <Button x:Name="SaveSceneButton" Content="{l:T 'Save Scene'}" Click="SaveScene_Click" IsEnabled="False"/>
             <Button x:Name="UndoButton" Content="{l:T 'Undo'}" Click="Undo_Click"/><Button x:Name="RedoButton" Content="{l:T 'Redo'}" Click="Redo_Click"/>
             <Button Content="{l:T 'Ground / gameplay…'}" Click="Floors_Click"/>
+            <Button Content="{l:T 'Resize level…'}" Click="ResizeLevel_Click" ToolTip="{l:T 'Add tiles around the level and fill the new space with ground.'}"/>
             <Button Content="{l:T 'Tileset palette…'}" Click="TilesetPalette_Click" ToolTip="{l:T 'Paint models from the level tileset into the scene.'}"/>
             <Button x:Name="UpdateButton" Content="{l:T 'Check for updates'}" Click="Update_Click" Margin="18,3,3,3"/>
         </WrapPanel>
@@ -117,11 +119,50 @@
             <Button x:Name="BackToWorkspaceButton" DockPanel.Dock="Left" Style="{StaticResource PanelChevron}" Content="&#x2039;" Visibility="Collapsed" Click="BackToWorkspace_Click" ToolTip="{l:T 'Back to the workspace scene list. This scene stays open.'}"/>
             <TextBlock Text="{l:T 'SCENE ENTITIES'}" FontWeight="Bold" Margin="4,0" VerticalAlignment="Center"/>
           </DockPanel>
+          <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,6">
+            <Button x:Name="AllEntitiesTab" Content="{l:T 'All'}" Click="AllEntitiesTab_Click" Background="#28686C" ToolTip="{l:T 'Every entity in the scene'}"/>
+            <Button x:Name="SelectionTab" Content="{l:T 'Selected'}" Click="SelectionTab_Click" ToolTip="{l:T 'The models in the current selection and the models close to it'}"/>
+          </UniformGrid>
+          <Grid>
+          <DockPanel x:Name="AllEntitiesView">
           <TextBox x:Name="Search" DockPanel.Dock="Top" ToolTip="{l:T 'Filter names and model paths'}" TextChanged="Search_Changed"/>
           <TextBlock x:Name="EntityCount" DockPanel.Dock="Bottom" Foreground="#9AAFC4" Margin="4,8"/>
-          <ListBox x:Name="Hierarchy" SelectionMode="Extended" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" MouseDoubleClick="Hierarchy_DoubleClick" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">
+          <ListBox x:Name="Hierarchy" SelectionMode="Extended" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" MouseDoubleClick="Hierarchy_DoubleClick" MouseMove="EntityList_MouseMove" MouseLeave="EntityList_MouseLeave" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">
             <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Padding="4,5" ToolTip="{Binding PreviewModel}"/></DataTemplate></ListBox.ItemTemplate>
           </ListBox>
+          </DockPanel>
+          <Grid x:Name="SelectionView" Visibility="Collapsed">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <DockPanel Margin="0,0,0,4">
+              <Button DockPanel.Dock="Right" Content="{l:T 'Clear'}" Click="ClearSelection_Click" ToolTip="{l:T 'Deselect everything'}"/>
+              <TextBlock x:Name="SelectionSummary" Foreground="#9AAFC4" TextWrapping="Wrap" VerticalAlignment="Center" Margin="4,0"/>
+            </DockPanel>
+            <ListBox x:Name="SelectedMembers" Grid.Row="1" HorizontalContentAlignment="Stretch" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True"
+                     PreviewMouseLeftButtonUp="SelectedMembers_Click" PreviewKeyDown="SelectedMembers_KeyDown" MouseRightButtonUp="SelectionRow_RightClick" MouseMove="EntityList_MouseMove" MouseLeave="EntityList_MouseLeave">
+              <ListBox.ItemTemplate><DataTemplate>
+                <DockPanel ToolTip="{l:T 'Click to remove from the selection · Right-click to look at it'}">
+                  <TextBlock DockPanel.Dock="Right" Text="&#x2715;" Foreground="#E4BA74" Padding="4,5"/>
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Padding="4,5"/>
+                </DockPanel>
+              </DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+            <DockPanel Grid.Row="2" Margin="0,10,0,4">
+              <ComboBox x:Name="NearbyRange" DockPanel.Dock="Right" Width="86" SelectionChanged="NearbyRange_Changed" ToolTip="{l:T 'How far from the selection to look, in DS1 tiles'}">
+                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" Foreground="Black"/></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Text="{l:T 'NEARBY'}" FontWeight="Bold" Margin="4,0" VerticalAlignment="Center"/>
+            </DockPanel>
+            <ListBox x:Name="NearbyModels" Grid.Row="3" HorizontalContentAlignment="Stretch" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True"
+                     PreviewMouseLeftButtonUp="NearbyModels_Click" PreviewKeyDown="NearbyModels_KeyDown" MouseRightButtonUp="SelectionRow_RightClick" MouseMove="EntityList_MouseMove" MouseLeave="EntityList_MouseLeave">
+              <ListBox.ItemTemplate><DataTemplate>
+                <DockPanel ToolTip="{l:T 'Click to add to the selection · Right-click to look at it'}">
+                  <TextBlock DockPanel.Dock="Right" Text="{Binding Distance}" Foreground="#9AAFC4" Padding="4,5"/>
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Padding="4,5"/>
+                </DockPanel>
+              </DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+          </Grid>
         </DockPanel>
         </Grid>
       </Border>

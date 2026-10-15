@@ -39,6 +39,7 @@ public partial class MainWindow : Window
     {
         arguments = args;
         InitializeComponent();
+        InitializeSelectionView();
         Ds1Preview.ScaleChanged += () => { Scene.CancelDrag(); RefreshNpcs(); };
         Ds1Preview.OpenRequested += () => Floors_Click(this, new());
         Ds1Preview.CalibrateRequested += Calibrate_Click;
@@ -582,6 +583,7 @@ public partial class MainWindow : Window
     }
     private void PopulateInspector()
     {
+        RefreshSelectionView();
         RefreshLinkStatus();
         RefreshPathOverlay();
         Ds1Preview.Select(Selected);
@@ -690,7 +692,7 @@ public partial class MainWindow : Window
         LevelDetails.IsEnabled = !busy;
         Scene.IsEnabled = !busy;
         DecoderNotice.Visibility = ModelReader.IsDecoderConfigured ? Visibility.Collapsed : Visibility.Visible;
-        Toolbar.IsEnabled = !busy; Hierarchy.IsEnabled = !busy; TransformPanel.IsEnabled = !busy && Selected?.CanTransform == true && !Selected.HasParent && Selected.GameplayUnitIndex is null && !Scene.IsLocked(Selected);
+        Toolbar.IsEnabled = !busy; Hierarchy.IsEnabled = !busy; SelectionView.IsEnabled = !busy; TransformPanel.IsEnabled = !busy && Selected?.CanTransform == true && !Selected.HasParent && Selected.GameplayUnitIndex is null && !Scene.IsLocked(Selected);
         UpdateGroupControls();
         CancelButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         UndoButton.IsEnabled = document?.CanUndo == true; RedoButton.IsEnabled = document?.CanRedo == true;

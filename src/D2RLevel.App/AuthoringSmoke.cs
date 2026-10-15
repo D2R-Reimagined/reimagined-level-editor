@@ -54,9 +54,35 @@ public partial class MainWindow
         await LoadPreset(created.JsonPath);
         if (!pairedScene!.Collision!.Document.Serialize().SequenceEqual(expected) || placementLinks!.Warning is not null) throw new InvalidOperationException("Authored map failed reopen.");
         if (!File.ReadAllBytes(template.SourcePath).SequenceEqual(originalJson) || !File.ReadAllBytes(source.Ds1Path).SequenceEqual(originalMap)) throw new InvalidOperationException("Authoring touched template files.");
+        string resize = await VerifyResize(output);
         ShowWorkspaceExplorer();
         await CaptureAuthoring(this, Path.Combine(output, "workspace.png"));
-        File.WriteAllText(Path.Combine(output, "authoring-smoke.txt"), $"PASS new project, explicit DT1 context, blank DS1, shared links, save/reopen, template preservation, toolbar at 1100px, menu render, workspace explorer.\n{brush}\nTemplate: {template.SourcePath}\nDS1: {source.Ds1Path}\nSize: {source.Map.Width}x{source.Map.Height}\nUnits placed: {(recipe is null ? 0 : 1)}\nGame compatibility not tested.");
+        File.WriteAllText(Path.Combine(output, "authoring-smoke.txt"), $"PASS new project, explicit DT1 context, blank DS1, shared links, save/reopen, template preservation, toolbar at 1100px, menu render, workspace explorer.\n{brush}\n{resize}\nTemplate: {template.SourcePath}\nDS1: {source.Ds1Path}\nSize: {source.Map.Width}x{source.Map.Height}\nUnits placed: {(recipe is null ? 0 : 1)}\nGame compatibility not tested.");
+    }
+    /// <summary>Grows the open project on every edge through the same path as Resize level, then checks the reopened scene.</summary>
+    private async Task<string> VerifyResize(string output)
+    {
+        var session = workspaceSession ?? throw new InvalidOperationException("Resize smoke needs a workspace scene.");
+        var map = pairedScene!.Collision!.Document;
+        int width = map.Width, height = map.Height, units = map.Units.Count, entities = document!.Entities.Count;
+        var unit = units > 0 ? map.Units[0] : null;
+        var usual = CommonFloor(pairedScene) ?? throw new InvalidOperationException("Template has no drawable floor.");
+        uint fill = Ds1CollisionDocument.FloorKey(usual.Main, usual.Sub);
+        var result = await ResizeOpenLevel(session, new(3, 2, 4, 5), GroundFill.Tile, fill, true);
+        var grown = pairedScene?.Collision?.Document ?? throw new InvalidOperationException("Resized level did not reopen with its DS1: " + pairedStatus);
+        if (grown.Width != width + 7 || grown.Height != height + 7 || result.Width != grown.Width || workspaceSession is null || placementLinks?.Warning is not null)
+            throw new InvalidOperationException($"Resized level reopened as {grown.Width}×{grown.Height}, links: {placementLinks?.Warning}.");
+        if (grown.Units.Count != units || (unit is not null && (grown.Units[0].X != unit.X + 15 || grown.Units[0].Y != unit.Y + 10)))
+            throw new InvalidOperationException("Placements did not shift with the grown map.");
+        if (grown.Cell(grown.Floors[0], 0, 0) != fill || grown.Cell(grown.Floors[0], grown.Width - 1, grown.Height - 1) != fill)
+            throw new InvalidOperationException("New ground was not filled.");
+        if (document.Entities.Count != entities + result.TerrainCopies || result.TerrainCopies == 0)
+            throw new InvalidOperationException($"HD terrain was not repeated: {result.TerrainCopies} copies.");
+        WindowState = WindowState.Normal; Width = 1400; Height = 900;
+        await CaptureAuthoring(this, Path.Combine(output, "resized.png"));
+        Floors_Click(this, new());
+        if (ds1Window is { } ground) { await CaptureAuthoring(ground, Path.Combine(output, "resized-ground.png")); ground.Close(); }
+        return $"PASS resize: {width}×{height} → {grown.Width}×{grown.Height}, floor {usual.Main}:{usual.Sub} fill, {units} placement(s) shifted, {result.TerrainCopies} terrain copies, links intact after reopen.";
     }
     private async Task CaptureAuthoring(Window window, string path)
     { await Dispatcher.InvokeAsync(() => {}, System.Windows.Threading.DispatcherPriority.Render); window.UpdateLayout(); await CaptureElement(window, path); }

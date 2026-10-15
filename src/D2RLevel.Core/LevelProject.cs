@@ -55,6 +55,7 @@ public sealed record LevelProject(int Version, Guid Id, string Name, string Pres
         if (!expected.Equals(Path.GetFullPath(preset), StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Project belongs to a different preset.");
         return project;
     }
+    internal byte[] Serialize() => JsonSerializer.SerializeToUtf8Bytes(this, Options);
     public void VerifyMap(Ds1CollisionDocument map)
     {
         if (Width != map.Width || Height != map.Height || Act != map.Act) throw new InvalidDataException("Project dimensions or act do not match the DS1.");
@@ -124,7 +125,7 @@ public sealed record LevelProject(int Version, Guid Id, string Name, string Pres
             Directory.CreateDirectory(Path.GetDirectoryName(json)!); Directory.CreateDirectory(Path.GetDirectoryName(ds1)!);
             File.WriteAllBytes(json, template.AuthoringScaffold(json, keepScenery).Serialize());
             File.WriteAllBytes(ds1, Ds1CollisionDocument.Create(ds1, project.Width, project.Height, project.Act, floor).Serialize());
-            File.WriteAllBytes(json + Suffix, JsonSerializer.SerializeToUtf8Bytes(project, Options));
+            File.WriteAllBytes(json + Suffix, project.Serialize());
             var checkedJson = PresetDocument.Load(json); var checkedMap = Ds1CollisionDocument.Load(ds1);
             project.VerifyMap(checkedMap);
             var links = new PlacementLinks(checkedJson, checkedMap);

@@ -59,6 +59,21 @@ public partial class MainWindow
         var grouped = hits.First(GroupMovement.CanGroup);
         assetGroups!.Create("Box selection fixture", [grouped, outside]);
         Drag(ModifierKeys.None); AssertSelection(hits.Append(outside), "box expands saved group");
+        // The Selected tab lists every member and drops one per click without breaking up the rest.
+        ShowSelectionView(true);
+        if (!SelectedMembers.Items.Cast<PresetEntity>().ToHashSet().SetEquals(hits.Append(outside))) throw new InvalidOperationException("Selected tab does not list the selection.");
+        Deselect(grouped); AssertSelection(hits.Append(outside).Where(e => e != grouped), "Selected tab deselects one group member");
+        if (SelectedMembers.Items.Contains(grouped)) throw new InvalidOperationException("Selected tab still lists a deselected model.");
+        var nearby = NearbyModels.Items.Cast<NearbyRow>().ToArray();
+        if (nearby.Length == 0 || nearby.Any(r => SelectedEntities.Contains(r.Entity) || Scene.IsLocked(r.Entity)))
+            throw new InvalidOperationException("Nearby list is empty or lists selected or locked models.");
+        await Capture("selection-tab.png");
+        Scene.Hover(nearby[0].Entity); Scene.FrameEntity(nearby[0].Entity);
+        await Capture("selection-hover.png");
+        AddToSelection(nearby[0].Entity); Scene.Hover(null);
+        if (!SelectedEntities.Contains(nearby[0].Entity) || NearbyModels.Items.Cast<NearbyRow>().Any(r => r.Entity == nearby[0].Entity))
+            throw new InvalidOperationException("Nearby click did not add the model to the selection.");
+        ShowSelectionView(false);
         if (!doc.Serialize().SequenceEqual(bytes) || !pairedScene.Collision.Document.Serialize().SequenceEqual(ds1Bytes) || doc.CanUndo)
             throw new InvalidOperationException("Box selection changed scene data or edit history.");
         File.WriteAllText(Path.Combine(output, "smoke.txt"),

@@ -20,6 +20,8 @@ public sealed partial class SceneViewport : Grid
     private readonly Dictionary<int, ModelVisual3D> visuals = new();
     private readonly HashSet<int> placeholders = new();
     private readonly ModelVisual3D selection = new();
+    private readonly ModelVisual3D hover = new();
+    private PresetEntity? hovered;
     private readonly ModelVisual3D overlay = new();
     private readonly Dictionary<GeometryModel3D, SceneBatch> batchHits = new();
     private readonly Dictionary<SceneBatch, ModelVisual3D> batchVisuals = new();
@@ -99,12 +101,13 @@ public sealed partial class SceneViewport : Grid
     {
         placeholders.Remove(entity.Index);
         CancelDrag();
+        if (hovered == entity) Hover(null);
         if (entityBatches.TryGetValue(entity.Index, out var batches))
         {
             foreach (var batch in batches) batch.SetIncluded(entity, false);
             RebuildBatches(entity); UpdateVisibility();
         }
-        if (visuals.Remove(entity.Index, out var visual)) { viewport.Children.Remove(visual); entities.Remove(visual); entityBounds.Remove(visual); }
+        if (visuals.Remove(entity.Index, out var visual)) { viewport.Children.Remove(visual); entities.Remove(visual); entityBounds.Remove(visual); exactBounds.Remove(visual); }
         if (selected == entity) Select(null);
     }
 
@@ -156,7 +159,7 @@ public sealed partial class SceneViewport : Grid
         UpdateGizmo();
         return true;
     }
-    internal void ContinueDrag(Point point)
+    internal void ContinueDrag(Point point, bool? snap = null)
     {
         if (dragEntity is not { } entity || (dragAxis is null ? GroundPoint(point, dragStart.Position.Y) : AxisPlanePoint(point)) is not { } ground) return;
         if (!dragging && Math.Abs(point.X - dragPointer.X) < SystemParameters.MinimumHorizontalDragDistance &&
@@ -178,6 +181,7 @@ public sealed partial class SceneViewport : Grid
                     detached = true;
                 }
             RebuildMemberBatches(dragMembers.Keys);
+            BeginContacts(dragMembers.Keys);
             Cursor = Cursors.SizeAll;
         }
         var delta = ground - dragAnchor;
@@ -187,6 +191,7 @@ public sealed partial class SceneViewport : Grid
             delta = vector * Vector3D.DotProduct(delta, vector);
         }
         else delta.Y = 0;
+        delta = UpdateContacts(delta, snap ?? !Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
         dragValue = dragStart with { Position = new(dragStart.Position.X + delta.X, dragStart.Position.Y + delta.Y, dragStart.Position.Z + delta.Z) };
         foreach (var (member, start) in dragMembers)
             visuals[member.Index].Transform = Transform(start with { Position = new(start.Position.X + delta.X, start.Position.Y + delta.Y, start.Position.Z + delta.Z) });
@@ -199,7 +204,7 @@ public sealed partial class SceneViewport : Grid
         bool copyDrag = duplicating;
         int copyCount = duplicateCount;
         var copyStep = duplicateStep;
-        ClearDuplication();
+        ClearDuplication(); ClearContacts();
         bool restoreBatches = detached;
         var members = dragMembers.Keys.ToArray(); dragMembers.Clear();
         dragEntity = null; dragAxis = null; dragging = detached = false; Cursor = null;
@@ -285,6 +290,7 @@ public sealed partial class SceneViewport : Grid
         Focusable = true;
         Children.Add(viewport);
         Children.Add(gizmo);
+        Children.Add(contactIndicator);
         Children.Add(marquee);
         Children.Add(modeLabel);
         Children.Add(duplicateLabel);
@@ -324,7 +330,7 @@ public sealed partial class SceneViewport : Grid
     {
         CancelDrag();
         viewport.Children.Clear(); entities.Clear(); visuals.Clear(); placeholders.Clear(); selected = null; selectedMembers = [];
-        batchHits.Clear(); batchVisuals.Clear(); entityBatches.Clear(); batchBounds.Clear(); entityBounds.Clear();
+        batchHits.Clear(); batchVisuals.Clear(); entityBatches.Clear(); batchBounds.Clear(); entityBounds.Clear(); exactBounds.Clear();
         var lighting = new Model3DGroup();
         lighting.Children.Add(new AmbientLight(Color.FromRgb(150, 150, 150)));
         lighting.Children.Add(new DirectionalLight(Colors.White, new Vector3D(-0.5, -1, -0.3)));
@@ -349,8 +355,9 @@ public sealed partial class SceneViewport : Grid
                     list.Add(batch);
                 }
             }
-        selection.Content = null; overlay.Content = null;
+        selection.Content = null; overlay.Content = null; hover.Content = null; hovered = null;
         viewport.Children.Add(selection);
+        viewport.Children.Add(hover);
         viewport.Children.Add(overlay);
         if (brush is not null) viewport.Children.Add(brushPreview);
         SetTerrainVisible(terrainVisible);
@@ -393,7 +400,19 @@ public sealed partial class SceneViewport : Grid
         foreach (var member in selectedMembers.Contains(entity) ? selectedMembers : [entity])
             if (visuals.TryGetValue(member.Index, out var v) && (!member.IsTerrain || terrainVisible))
                 outlines.Children.Add(WireBox(v.Transform.TransformBounds(v.Content.Bounds), Colors.Turquoise));
+        // Outline what the dragged selection is touching so the partner of each contact face is clear.
+        foreach (var other in Contacts.Where(c => c.Kind == ContactKind.Touching).Select(c => c.Other).OfType<PresetEntity>().Distinct())
+            if (visuals.TryGetValue(other.Index, out var v)) outlines.Children.Add(WireBox(ExactBounds(v), Color.FromRgb(90, 240, 130)));
         outlines.Freeze(); selection.Content = outlines;
+    }
+    /// <summary>Outlines a model in gold while its row in an entity list is under the pointer.</summary>
+    public void Hover(PresetEntity? entity)
+    {
+        if (entity == hovered) return;
+        hovered = entity; hover.Content = null;
+        if (entity is null || entity.IsTerrain && !terrainVisible || !visuals.TryGetValue(entity.Index, out var visual) || visual.Content is null) return;
+        var outline = WireBox(visual.Transform.TransformBounds(visual.Content.Bounds), Color.FromRgb(255, 176, 24), 3);
+        outline.Freeze(); hover.Content = outline;
     }
     public void FrameSelected()
     {
@@ -420,6 +439,19 @@ public sealed partial class SceneViewport : Grid
         var b = visual.Transform.TransformBounds(visual.Content.Bounds);
         if (b.IsEmpty) return null;
         return new(entity.Name, b.X, b.Z, b.X + b.SizeX, b.Z + b.SizeZ);
+    }
+    /// <summary>Ground-plane box of any visual, placeholders included, for proximity lists.</summary>
+    public ModelFootprint? GetExtent(PresetEntity entity)
+    {
+        if (!visuals.TryGetValue(entity.Index, out var visual) || visual.Content is null) return null;
+        var b = visual.Transform.TransformBounds(visual.Content.Bounds);
+        return b.IsEmpty ? null : new(entity.Name, b.X, b.Z, b.X + b.SizeX, b.Z + b.SizeZ);
+    }
+    public void FrameEntity(PresetEntity entity)
+    {
+        if (!visuals.TryGetValue(entity.Index, out var visual) || visual.Content is null) return;
+        var bounds = visual.Transform.TransformBounds(visual.Content.Bounds);
+        if (!bounds.IsEmpty) Frame(bounds);
     }
     public void FrameAll()
     {
@@ -741,13 +773,13 @@ public sealed partial class SceneViewport : Grid
             new EmissiveMaterial(new SolidColorBrush(Color.FromRgb(38, 82, 90)))));
         group.Freeze(); return group;
     }
-    private static Model3DGroup WireBox(Rect3D b, Color color)
+    private static Model3DGroup WireBox(Rect3D b, Color color, double weight = 1)
     {
         var group = new Model3DGroup();
         if (b.IsEmpty) return group;
         var material = new EmissiveMaterial(new SolidColorBrush(color));
         double x = b.X, y = b.Y, z = b.Z, sx = Math.Max(b.SizeX, 0.1), sy = Math.Max(b.SizeY, 0.1), sz = Math.Max(b.SizeZ, 0.1);
-        double t = Math.Max(0.0001, Math.Max(sx, Math.Max(sy, sz)) * 0.002);
+        double t = Math.Max(0.0001, Math.Max(sx, Math.Max(sy, sz)) * 0.002 * weight);
         foreach (var yy in new[] { y, y + sy }) foreach (var zz in new[] { z, z + sz }) group.Children.Add(Box(new(x, yy, zz, sx, t, t), material));
         foreach (var xx in new[] { x, x + sx }) foreach (var zz in new[] { z, z + sz }) group.Children.Add(Box(new(xx, y, zz, t, sy, t), material));
         foreach (var xx in new[] { x, x + sx }) foreach (var yy in new[] { y, y + sy }) group.Children.Add(Box(new(xx, yy, z, t, t, sz), material));
