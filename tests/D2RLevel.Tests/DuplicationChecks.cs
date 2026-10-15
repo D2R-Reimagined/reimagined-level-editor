@@ -61,5 +61,40 @@ internal static class DuplicationChecks
         check(doc.Serialize().SequenceEqual(groupBefore), "all rejected rows leave document untouched");
         throws(() => doc.History.Transaction(() => { doc.DuplicateModels([source], new(1, 0, 0), 2); throw new InvalidOperationException(); }), "copy row participates in transaction rollback");
         check(doc.Serialize().SequenceEqual(groupBefore), "failed transaction removes complete copy row");
+        PrefabsAndPaste(folder, check, throws);
+    }
+
+    /// <summary>Prefab placements (tents, wagons, buildings) duplicate like single models, and Ctrl+C/Ctrl+V pastes snapshots.</summary>
+    private static void PrefabsAndPaste(string folder, Action<bool, string> check, Action<Action, string> throws)
+    {
+        var root = JsonNode.Parse(PresetDocument.ModelPreview("data/hd/wall.model").Serialize())!;
+        ((JsonArray)root["entities"]!).Add(new JsonObject { ["type"] = "Entity", ["name"] = "pf_tent", ["id"] = 7,
+            ["components"] = new JsonArray(
+                new JsonObject { ["type"] = "TransformDefinitionComponent", ["position"] = new JsonObject { ["x"] = 4.0, ["y"] = 0.0, ["z"] = 6.0 } },
+                new JsonObject { ["type"] = "PrefabPlacementDefinitionComponent", ["prefab"] = "data/hd/env/prefab/pf_tent.json" }) });
+        var path = Path.Combine(folder, "prefab-source.json"); File.WriteAllText(path, root.ToJsonString());
+        var doc = PresetDocument.Load(path); var wall = doc.Entities[0]; var tent = doc.Entities[1];
+        check(GroupMovement.CanGroup(tent) && tent.SourceAsset == "data/hd/env/prefab/pf_tent.json", "prefab placement is a movable HD object");
+        var before = doc.Serialize();
+        var row = doc.DuplicateModels([tent], new(10, 0, 0), 2);
+        check(row.Copies.Length == 2 && row.Copies.All(c => c.PrefabPath == tent.PrefabPath) && row.Copies[1].Transform.Position == new Vector3d(24, 0, 6),
+            "Alt-drag row copies prefab placements");
+        doc.Undo(); check(doc.Serialize().SequenceEqual(before), "prefab row is one undo");
+
+        var clip = doc.CopyModels([wall, tent]);
+        doc.SetTransform(tent, tent.Transform with { Position = new(100, 0, 100) });
+        var moved = doc.Serialize();
+        var paste = doc.PasteModels(clip, new(1, 2, 3));
+        check(paste.Copies.Length == 2 && paste.Copies[1].PrefabPath == tent.PrefabPath && paste.Copies[1].Transform.Position == new Vector3d(5, 2, 9),
+            "paste offsets from where objects were when copied");
+        check(paste.Copies.All(c => c.Name.EndsWith("_copy")) && doc.Entities.Select(e => e.Id).Distinct().Count() == doc.Entities.Count, "pasted copies get unique names and IDs");
+        doc.PasteModels(clip, new(1, 2, 3));
+        check(doc.Entities.Select(e => e.Name).Distinct().Count() == doc.Entities.Count, "repeated paste keeps names unique");
+        doc.Undo(); doc.Undo(); check(doc.Serialize().SequenceEqual(moved), "each paste is one undo");
+        doc.DeleteModel(tent);
+        check(doc.PasteModels(clip, default).Copies[1].PrefabPath == tent.PrefabPath, "paste works after the source is deleted");
+        throws(() => PresetDocument.ModelPreview("data/hd/other.model").PasteModels(clip, default), "paste refuses another document");
+        throws(() => doc.PasteModels(clip, new(double.NaN, 0, 0)), "paste rejects non-finite offsets");
+        throws(() => doc.CopyModels([PresetEntity.GameplayPreview(0, "NPC", wall.Transform)]), "copy rejects DS1 proxy");
     }
 }

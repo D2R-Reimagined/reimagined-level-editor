@@ -83,8 +83,59 @@ public partial class MainWindow
             }
         }
         Search.Text = ""; Filter();
+        // Pasted sources may since have been deleted, so undo selects only those still in the scene.
         SetSelection(document.Entities.Contains(duplication.Copies[0])
-            ? duplication.Copies.TakeLast(duplication.Sources.Length) : duplication.Sources);
+            ? duplication.Copies.TakeLast(duplication.Sources.Length) : duplication.Sources.Where(document.Entities.Contains));
         PopulateInspector(); RefreshState();
+    }
+
+    private ModelClipboard? clipboard;
+
+    /// <summary>Ctrl+C: remember the selected HD models and prefab placements (tents, wagons, buildings) for pasting.</summary>
+    private void CopyModels()
+    {
+        try
+        {
+            if (document is null) return;
+            var selected = SelectedEntities;
+            var copyable = selected.Where(e => GroupMovement.CanGroup(e) && Scene.GetItem(e) is not null).ToArray();
+            if (copyable.Length == 0) { Status.Text = L.T("Select HD models or prefabs to copy. DS1 units and terrain are not copied."); return; }
+            clipboard = document.CopyModels(copyable);
+            int skipped = selected.Length - copyable.Length;
+            Status.Text = (skipped > 0 ? L.T("Copied {0} objects; {1} DS1 units, terrain or unpreviewed entities were skipped.", copyable.Length, skipped)
+                : L.T("Copied {0} objects.", copyable.Length)) + " " + L.T("Ctrl+V pastes under the pointer.");
+        }
+        catch (Exception ex) { Error(ex); }
+    }
+
+    /// <summary>
+    /// Ctrl+V: place one copy of the clipboard as one undoable edit, centred on the ground under the pointer, or one
+    /// selection-width along X when the pointer is not over the viewport. DS1 units and collision links are not copied.
+    /// </summary>
+    private void PasteModels()
+    {
+        try
+        {
+            if (document is null || clipboard is null) return;
+            if (clipboard.Document != document) { clipboard = null; Status.Text = L.T("The copied objects belong to another scene. Copy them again here."); return; }
+            var bounds = System.Windows.Media.Media3D.Rect3D.Empty;
+            for (int i = 0; i < clipboard.Sources.Length; i++)
+                if ((Scene.GetItem(clipboard.Sources[i]) ?? addedModels.GetValueOrDefault(clipboard.Sources[i])) is { } item)
+                    bounds.Union(SceneViewport.Transform(clipboard.Snapshots[i].Transform).TransformBounds(item.Geometry.Bounds));
+            if (bounds.IsEmpty) throw new InvalidOperationException(L.T("The copied objects' geometry is unavailable. Copy them again."));
+            double centreX = bounds.X + bounds.SizeX / 2, centreZ = bounds.Z + bounds.SizeZ / 2;
+            Vector3d offset;
+            if (Scene.PointerGround() is { } target)
+            {
+                // Follow the terrain: lift or lower by the ground difference between the copied spot and the target.
+                double from = Scene.GroundHeight?.Invoke(centreX, centreZ) ?? 0;
+                offset = new(target.X - centreX, double.IsFinite(from) ? target.Y - from : 0, target.Z - centreZ);
+            }
+            else offset = new(Math.Max(bounds.SizeX, 1), 0, 0);
+            Scene.CancelDrag();
+            var result = document.PasteModels(clipboard, offset);
+            Status.Text = L.T("Pasted {0} objects. Ctrl+Z undoes the paste. DS1 units and collision links are not copied.", result.Copies.Length);
+        }
+        catch (Exception ex) { Error(ex); }
     }
 }

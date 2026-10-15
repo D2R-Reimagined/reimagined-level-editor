@@ -11,7 +11,25 @@ namespace D2RLevel.Assets;
 /// </summary>
 public sealed record MeshSkin(int[] Indices, float[] Weights, string[] BoneNames);
 
-public sealed record MeshPart(string Name, float[] Positions, float[] Normals, float[] UVs, int[] Indices, string? AlbedoPath, MeshSkin? Skin = null);
+/// <summary>How a mesh part is shaded in game, as far as a static preview cares.</summary>
+public enum SurfaceKind
+{
+    /// <summary>Has an albedo texture (<see cref="MeshPart.AlbedoPath"/>).</summary>
+    Textured,
+    /// <summary>A material with no texture maps at all, e.g. a leftover default shading group.</summary>
+    Plain,
+    /// <summary>Terrain splat-blended from a biome's layers; <see cref="MeshPart.SurfaceDetail"/> is the biome JSON.</summary>
+    Biome,
+    /// <summary>A water shader: normal, foam and flow maps but no color.</summary>
+    Water,
+    /// <summary>The water shader used for pools of blood.</summary>
+    Blood,
+    /// <summary>Unrecognized maps without an albedo; <see cref="MeshPart.SurfaceDetail"/> lists their usages.</summary>
+    Unknown,
+}
+
+public sealed record MeshPart(string Name, float[] Positions, float[] Normals, float[] UVs, int[] Indices, string? AlbedoPath, MeshSkin? Skin = null,
+    SurfaceKind Surface = SurfaceKind.Textured, string? SurfaceDetail = null);
 public sealed record ModelAsset(IReadOnlyList<MeshPart> Parts, IReadOnlyList<string>? TexturePaths = null)
 {
     /// <summary>True when every part carries skin weights and can be posed.</summary>
@@ -90,7 +108,9 @@ public static class ModelReader
                     throw new InvalidDataException("Invalid material triangle range.");
                 var material = group.MaterialIndex >= 0 && group.MaterialIndex < (mesh.MaterialBindings?.Count ?? 0)
                     ? mesh.MaterialBindings![group.MaterialIndex].Material : null;
-                parts.Add(new(mesh.Name, positions, normals, uvs, indices.AsSpan(start, count).ToArray(), Albedo(material), skin));
+                var albedo = Albedo(material);
+                var (surface, detail) = albedo is not null ? (SurfaceKind.Textured, null) : Classify(material);
+                parts.Add(new(mesh.Name, positions, normals, uvs, indices.AsSpan(start, count).ToArray(), albedo, skin, surface, detail));
             }
         }
         if (parts.Count == 0) throw new InvalidDataException("No renderable meshes found.");
@@ -111,6 +131,18 @@ public static class ModelReader
         var map = material?.Maps?.FirstOrDefault(m => m.Usage.Contains("diffuse", StringComparison.OrdinalIgnoreCase) ||
             m.Usage.Contains("albedo", StringComparison.OrdinalIgnoreCase) || m.Usage.Contains("basecolor", StringComparison.OrdinalIgnoreCase));
         return map?.Map?.Texture?.FromFileName ?? material?.Texture?.FromFileName;
+    }
+
+    /// <summary>Names the shader of a material that has no albedo, from the usages of its texture maps.</summary>
+    private static (SurfaceKind, string?) Classify(Material? material)
+    {
+        var maps = material?.Maps ?? [];
+        if (maps.Count == 0) return (SurfaceKind.Plain, null);
+        if (maps.FirstOrDefault(m => m.Usage == "BiomeTexture")?.Map?.Texture?.FromFileName is { Length: > 0 } biome)
+            return (SurfaceKind.Biome, biome.Replace('\\', '/'));
+        if (maps.Any(m => m.Usage is "FoamMaskTexture" or "WaterFlowTexture"))
+            return (material!.Name?.Contains("blood", StringComparison.OrdinalIgnoreCase) == true ? SurfaceKind.Blood : SurfaceKind.Water, null);
+        return (SurfaceKind.Unknown, string.Join(", ", maps.Select(m => m.Usage)));
     }
 
     private static void ValidateSections(Stream stream)

@@ -119,7 +119,7 @@
           </DockPanel>
           <TextBox x:Name="Search" DockPanel.Dock="Top" ToolTip="{l:T 'Filter names and model paths'}" TextChanged="Search_Changed"/>
           <TextBlock x:Name="EntityCount" DockPanel.Dock="Bottom" Foreground="#9AAFC4" Margin="4,8"/>
-          <ListBox x:Name="Hierarchy" SelectionMode="Extended" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">
+          <ListBox x:Name="Hierarchy" SelectionMode="Extended" Background="#18212B" Foreground="#E1E8F0" BorderThickness="0" SelectionChanged="Selection_Changed" MouseDoubleClick="Hierarchy_DoubleClick" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True">
             <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Padding="4,5" ToolTip="{Binding PreviewModel}"/></DataTemplate></ListBox.ItemTemplate>
           </ListBox>
         </DockPanel>

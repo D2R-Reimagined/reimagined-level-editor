@@ -673,6 +673,12 @@ public partial class MainWindow : Window
     private void Undo_Click(object sender, RoutedEventArgs e) { Scene.CancelDrag(); if (document?.Undo() is { } entity) SyncHistory(entity); }
     private void Redo_Click(object sender, RoutedEventArgs e) { Scene.CancelDrag(); if (document?.Redo() is { } entity) SyncHistory(entity); }
     private void Frame_Click(object sender, RoutedEventArgs e) => Scene.FrameSelected();
+    private void Hierarchy_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // Only rows frame; double-clicks on the scrollbar or empty space are ignored.
+        if (e.ChangedButton != MouseButton.Left || ItemsControl.ContainerFromElement(Hierarchy, (DependencyObject)e.OriginalSource) is not ListBoxItem) return;
+        Scene.FrameSelected(); e.Handled = true;
+    }
     private void FocusArea_Click(object sender, RoutedEventArgs e)
     {
         if (Selected is null) { Status.Text = L.T("Select a prop to center the local editing area."); return; }
@@ -694,7 +700,7 @@ public partial class MainWindow : Window
         UpdateWorkspaceChevrons();
         SaveCopyButton.Visibility = workspaceSession is not null || exploringWorkspace ? Visibility.Collapsed : Visibility.Visible;
         SavePairButton.Content = workspaceSession is not null ? L.T("Save Scene") : L.T("Save linked pair…");
-        DeleteModelButton.IsEnabled = !busy && SelectedEntities.Length == 1 && Selected is { HasParent: false, IsTerrain: false, PreviewModel: not null };
+        DeleteModelButton.IsEnabled = !busy && SelectedEntities.Length == 1 && Selected is { HasParent: false, IsTerrain: false, SourceAsset: not null };
         RefreshLinkStatus();
         bool dirty = document?.IsDirty == true || connectionEdits?.IsDirty == true || placementLinks?.HasMetadataChanges == true || (document?.History.Shared == true && pairedScene?.Collision?.Document.IsDirty == true);
         Title = "Reimagined Level Editor · " + (document is null ? L.T("Workspace") : Path.GetFileName(document.SourcePath)) + (dirty ? " *" : "");
@@ -716,5 +722,8 @@ public partial class MainWindow : Window
         if (Keyboard.FocusedElement is TextBox) return;
         if (e.Key == Key.Z) { Undo_Click(this, new()); e.Handled = true; }
         if (e.Key == Key.Y) { Redo_Click(this, new()); e.Handled = true; }
+        if (!Scene.IsKeyboardFocusWithin && !Hierarchy.IsKeyboardFocusWithin) return;
+        if (e.Key == Key.C) { CopyModels(); e.Handled = true; }
+        if (e.Key == Key.V) { PasteModels(); e.Handled = true; }
     }
 }

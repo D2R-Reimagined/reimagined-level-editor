@@ -104,7 +104,7 @@ public sealed partial class SceneViewport : Grid
             foreach (var batch in batches) batch.SetIncluded(entity, false);
             RebuildBatches(entity); UpdateVisibility();
         }
-        if (visuals.Remove(entity.Index, out var visual)) { viewport.Children.Remove(visual); entities.Remove(visual); }
+        if (visuals.Remove(entity.Index, out var visual)) { viewport.Children.Remove(visual); entities.Remove(visual); entityBounds.Remove(visual); }
         if (selected == entity) Select(null);
     }
 
@@ -324,7 +324,7 @@ public sealed partial class SceneViewport : Grid
     {
         CancelDrag();
         viewport.Children.Clear(); entities.Clear(); visuals.Clear(); placeholders.Clear(); selected = null; selectedMembers = [];
-        batchHits.Clear(); batchVisuals.Clear(); entityBatches.Clear(); batchBounds.Clear();
+        batchHits.Clear(); batchVisuals.Clear(); entityBatches.Clear(); batchBounds.Clear(); entityBounds.Clear();
         var lighting = new Model3DGroup();
         lighting.Children.Add(new AmbientLight(Color.FromRgb(150, 150, 150)));
         lighting.Children.Add(new DirectionalLight(Colors.White, new Vector3D(-0.5, -1, -0.3)));
@@ -468,12 +468,12 @@ public sealed partial class SceneViewport : Grid
     }
     private void UpdateVisibility()
     {
-        if (batchVisuals.Count == 0) return;
         var forward = camera.LookDirection; forward.Normalize();
         var right = Vector3D.CrossProduct(forward, camera.UpDirection); right.Normalize();
         var up = Vector3D.CrossProduct(right, forward);
         double horizontal = Math.Tan(camera.FieldOfView * Math.PI / 360) * 1.1;
         double vertical = horizontal * Math.Max(1, ActualHeight) / Math.Max(1, ActualWidth);
+        double nearest = double.PositiveInfinity;
         foreach (var (batch, visual) in batchVisuals)
         {
             var b = batchBounds[batch];
@@ -482,7 +482,8 @@ public sealed partial class SceneViewport : Grid
             var delta = center - camera.Position;
             double radius = Math.Sqrt(b.SizeX * b.SizeX + b.SizeY * b.SizeY + b.SizeZ * b.SizeZ) / 2;
             double depth = Vector3D.DotProduct(delta, forward);
-            bool visible = (terrainVisible || !batch.IsTerrain) && depth + radius > camera.NearPlaneDistance &&
+            // Cull against the camera itself, not the near plane, because the near plane is fitted to what stays visible.
+            bool visible = (terrainVisible || !batch.IsTerrain) && depth + radius > 0 &&
                 Math.Abs(Vector3D.DotProduct(delta, right)) - horizontal * depth <= radius * Math.Sqrt(1 + horizontal * horizontal) &&
                 Math.Abs(Vector3D.DotProduct(delta, up)) - vertical * depth <= radius * Math.Sqrt(1 + vertical * vertical);
             if (visible && workRadius is { } limit)
@@ -492,7 +493,55 @@ public sealed partial class SceneViewport : Grid
             }
             if (visible && visual.Content is null) visual.Content = batch.Model;
             else if (!visible && visual.Content is not null) visual.Content = null;
+            if (visible) nearest = Math.Min(nearest, NearestDepth(b, forward, right, up, horizontal, vertical));
         }
+        foreach (var child in viewport.Children)
+            if (child is ModelVisual3D { Content: { } content } visual && entities.ContainsKey(visual))
+                nearest = Math.Min(nearest, NearestDepth(EntityBounds(visual, content), forward, right, up, horizontal, vertical));
+        // A fixed 0.001 near plane leaves the depth buffer almost no precision once the camera
+        // is close to the map, so stacked floor layers z-fight and flicker. Sit the near plane
+        // just short of the nearest visible geometry instead; when the camera is inside some
+        // geometry's bounds, fall back to a small fraction of its height above the ground.
+        double near = nearest > 0 && double.IsFinite(nearest) ? nearest * 0.5 : Math.Abs(camera.Position.Y) * 0.01;
+        camera.NearPlaneDistance = Math.Clamp(near, 0.001, camera.FarPlaneDistance / 2);
+    }
+    /// <summary>
+    /// Lower bound on the view depth of any part of the box inside the view frustum. Zero
+    /// when the camera is inside the box, infinity when no part of it can be seen.
+    /// </summary>
+    private double NearestDepth(Rect3D b, Vector3D forward, Vector3D right, Vector3D up, double horizontal, double vertical)
+    {
+        if (b.IsEmpty) return double.PositiveInfinity;
+        var eye = camera.Position;
+        double depth = double.PositiveInfinity;
+        for (int i = 0; i < 8; i++)
+        {
+            var corner = new Point3D((i & 1) == 0 ? b.X : b.X + b.SizeX, (i & 2) == 0 ? b.Y : b.Y + b.SizeY, (i & 4) == 0 ? b.Z : b.Z + b.SizeZ);
+            depth = Math.Min(depth, Vector3D.DotProduct(corner - eye, forward));
+        }
+        // A box off to one side of the camera along an axis is only reached once the frustum's
+        // widest ray has travelled that far, which bounds how near its visible part can be.
+        double Slab(double origin, double low, double high, double f, double r, double u)
+        {
+            double reach = horizontal * Math.Abs(r) + vertical * Math.Abs(u);
+            if (origin > high) return reach - f > 0 ? (origin - high) / (reach - f) : double.PositiveInfinity;
+            if (origin < low) return reach + f > 0 ? (low - origin) / (reach + f) : double.PositiveInfinity;
+            return 0;
+        }
+        depth = Math.Max(depth, Slab(eye.X, b.X, b.X + b.SizeX, forward.X, right.X, up.X));
+        depth = Math.Max(depth, Slab(eye.Y, b.Y, b.Y + b.SizeY, forward.Y, right.Y, up.Y));
+        depth = Math.Max(depth, Slab(eye.Z, b.Z, b.Z + b.SizeZ, forward.Z, right.Z, up.Z));
+        return Math.Max(0, depth);
+    }
+    private readonly Dictionary<ModelVisual3D, (Transform3D Transform, Model3D Content, Rect3D Bounds)> entityBounds = new();
+    /// <summary>World bounds of an unbatched entity, cached until its transform or content is replaced.</summary>
+    private Rect3D EntityBounds(ModelVisual3D visual, Model3D content)
+    {
+        if (entityBounds.TryGetValue(visual, out var cached) && ReferenceEquals(cached.Transform, visual.Transform) && ReferenceEquals(cached.Content, content))
+            return cached.Bounds;
+        var bounds = visual.Transform.TransformBounds(content.Bounds);
+        entityBounds[visual] = (visual.Transform, content, bounds);
+        return bounds;
     }
     private void Down(object sender, MouseButtonEventArgs e)
     {

@@ -63,6 +63,8 @@ public sealed class PresetEntity
     public string? PreviewModel => ModelPaths.FirstOrDefault();
     /// <summary>The prefab JSON this entity places, if any. Its contents live in that file, not in this preset.</summary>
     public string? PrefabPath => Components.FirstOrDefault(c => c["type"]?.GetValue<string>() == "PrefabPlacementDefinitionComponent")?["prefab"]?.GetValue<string>() is { Length: > 0 } path ? path : null;
+    /// <summary>What this entity draws: its model, else the prefab it places.</summary>
+    public string? SourceAsset => PreviewModel ?? PrefabPath;
     public EntityTransform Transform
     {
         get
@@ -93,6 +95,13 @@ public sealed partial class PresetDocument
     private int nextIndex;
     private bool? dirtyCache;
     public bool IsDirty => dirtyCache ??= root.ToJsonString() != savedJson;
+    /// <summary>
+    /// The biome JSON this preset depends on. Terrain models often point at a placeholder biome;
+    /// the preset's own dependency names the one the game uses.
+    /// </summary>
+    public string? Biome => (root["dependencies"]?["json"] as JsonArray)?.OfType<JsonObject>()
+        .Select(d => d["path"] is JsonValue v && v.TryGetValue<string>(out var p) ? p.Replace('\\', '/') : null)
+        .FirstOrDefault(p => p is not null && p.Contains("/env/biome/", StringComparison.OrdinalIgnoreCase) && p.EndsWith(".json", StringComparison.OrdinalIgnoreCase));
     public bool CanUndo => History.CanUndo;
     public bool CanRedo => History.CanRedo;
 
@@ -235,7 +244,7 @@ public sealed partial class PresetDocument
     public void DeleteModel(PresetEntity entity)
     {
         if (!entities.Contains(entity)) throw new ArgumentException("Entity belongs to another document.");
-        if (entity.HasParent || entity.IsTerrain || entity.PreviewModel is null)
+        if (entity.HasParent || entity.IsTerrain || entity.SourceAsset is null)
             throw new InvalidOperationException("Deletion supports standalone models, not terrain or parented entities.");
         var array = (JsonArray)root["entities"]!;
         int index = entities.IndexOf(entity), nodeIndex = array.IndexOf(entity.Data);

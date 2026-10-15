@@ -3,7 +3,9 @@ namespace D2RLevel.Core;
 
 public static class GroupMovement
 {
-    public static bool CanGroup(PresetEntity e) => e.GameplayUnitIndex is null && e.CanTransform && !e.HasParent && !e.IsTerrain && e.PreviewModel is not null;
+    /// <summary>Standalone HD objects: single models, and prefab placements such as tents, wagons and buildings,
+    /// which move and copy as one piece because their parts live in the prefab file.</summary>
+    public static bool CanGroup(PresetEntity e) => e.GameplayUnitIndex is null && e.CanTransform && !e.HasParent && !e.IsTerrain && e.SourceAsset is not null;
     public static void Move(PresetDocument document, PlacementLinks? links, IEnumerable<PresetEntity> selection, Vector3d delta)
     {
         var members = selection.Distinct().ToArray();
@@ -52,7 +54,7 @@ public sealed class AssetGroups
     public AssetGroup? Find(PresetEntity entity) => groups.FirstOrDefault(g => Resolve(g).Contains(entity));
     public PresetEntity[] Resolve(AssetGroup group) => group.Members.Select(m =>
     {
-        var found = document.Entities.Where(e => GroupMovement.CanGroup(e) && e.Id == m.Id && e.Name == m.Name && e.PreviewModel == m.Model).Take(2).ToArray();
+        var found = document.Entities.Where(e => GroupMovement.CanGroup(e) && e.Id == m.Id && e.Name == m.Name && e.SourceAsset == m.Model).Take(2).ToArray();
         return found.Length == 1 ? found[0] : null;
     }).OfType<PresetEntity>().ToArray();
     public void Create(string name, IEnumerable<PresetEntity> selected)
@@ -62,7 +64,7 @@ public sealed class AssetGroups
         if (string.IsNullOrWhiteSpace(name) || name.Length > 100) throw new InvalidOperationException("Enter a group name of 1 to 100 characters.");
         if (members.Any(e => e.Id == "(none)" || document.Entities.Count(other => other.Id == e.Id) != 1)) throw new InvalidOperationException("Saved groups require unique entity IDs.");
         var ids = members.Select(e => e.Id).ToHashSet();
-        var next = groups.Where(g => !g.Members.Any(m => ids.Contains(m.Id))).Append(new AssetGroup(name.Trim(), members.Select(e => new AssetGroupMember(e.Id, e.Name, e.PreviewModel!)).ToArray())).ToArray();
+        var next = groups.Where(g => !g.Members.Any(m => ids.Contains(m.Id))).Append(new AssetGroup(name.Trim(), members.Select(e => new AssetGroupMember(e.Id, e.Name, e.SourceAsset!)).ToArray())).ToArray();
         Save(next);
     }
     public void Remove(IEnumerable<PresetEntity> selected)

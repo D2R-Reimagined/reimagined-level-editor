@@ -12,7 +12,7 @@ public static class TerrainPreview
     public static LoadedScene Apply(LoadedScene loaded, LegacyFloorScene? scene, CancellationToken token)
     {
         if (!loaded.Items.Any(i => i.Entity.IsTerrain && !i.IsPlaceholder)) return loaded;
-        if (scene is null) return loaded with { Diagnostics = loaded.Diagnostics.Append("Terrain: no paired DS1 floor reference; showing untextured terrain geometry.").ToArray() };
+        if (scene is null) return loaded with { Diagnostics = loaded.Diagnostics.Append("Terrain: no paired DS1 floor reference; showing the biome's base layer.").ToArray() };
         int size = Math.Clamp(2048 / Math.Max(scene.Map.Width, scene.Map.Height), 4, 32);
         int width = scene.Map.Width * size, height = scene.Map.Height * size;
         var pixels = new byte[width * height * 4];
@@ -47,7 +47,7 @@ public static class TerrainPreview
             foreach (GeometryModel3D part in item.Geometry.Children)
             {
                 token.ThrowIfCancellationRequested();
-                if (part.Material is DiffuseMaterial { Brush: ImageBrush }) { model.Children.Add(part); continue; }
+                if (part.Material is DiffuseMaterial { Brush: ImageBrush } own && !PreviewMaterials.IsBiomeLayer(own)) { model.Children.Add(part); continue; }
                 var mesh = ((MeshGeometry3D)part.Geometry).Clone(); mesh.TextureCoordinates.Clear();
                 foreach (var vertex in mesh.Positions)
                 {

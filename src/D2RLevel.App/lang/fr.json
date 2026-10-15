@@ -728,5 +728,12 @@
   "{0} of them block movement with owned DS1 footprints.": "",
   "{0} pieces. Release to place; Esc cancels.": "",
   "Stop painting": "",
-  "{0:N0} shown · {1:N0} tileset models": ""
+  "{0:N0} shown · {1:N0} tileset models": "",
+  "Copied {0} objects.": "",
+  "Copied {0} objects; {1} DS1 units, terrain or unpreviewed entities were skipped.": "",
+  "Ctrl+V pastes under the pointer.": "",
+  "Pasted {0} objects. Ctrl+Z undoes the paste. DS1 units and collision links are not copied.": "",
+  "Select HD models or prefabs to copy. DS1 units and terrain are not copied.": "",
+  "The copied objects belong to another scene. Copy them again here.": "",
+  "The copied objects' geometry is unavailable. Copy them again.": ""
 }

@@ -72,15 +72,24 @@ public sealed partial class SceneViewport
     /// <summary>The ground point under the pointer, snapped, at the terrain's height there.</summary>
     private Point3D? BrushPoint(Point point)
     {
-        if (brush is null || GroundPoint(point, 0) is not { } flat) return null;
-        // Terrain is rarely at zero: intersect again at the height found under the first hit.
-        double height = GroundHeight?.Invoke(flat.X, flat.Z) ?? 0;
-        if (!double.IsFinite(height)) height = 0;
-        var ground = height == 0 ? flat : GroundPoint(point, height) ?? flat;
-        double x = ground.X, z = ground.Z;
+        if (brush is null || TerrainPoint(point) is not { } ground) return null;
+        double height = ground.Y, x = ground.X, z = ground.Z;
         if (brush.Snap > 0) { x = Math.Round(x / brush.Snap) * brush.Snap; z = Math.Round(z / brush.Snap) * brush.Snap; }
         return new(x, GroundHeight?.Invoke(x, z) is { } y && double.IsFinite(y) ? y : height, z);
     }
+
+    /// <summary>The ground point under a viewport point at the terrain's height there.</summary>
+    private Point3D? TerrainPoint(Point point)
+    {
+        if (GroundPoint(point, 0) is not { } flat) return null;
+        // Terrain is rarely at zero: intersect again at the height found under the first hit.
+        double height = GroundHeight?.Invoke(flat.X, flat.Z) ?? 0;
+        if (!double.IsFinite(height)) height = 0;
+        return height == 0 ? flat : GroundPoint(point, height) ?? flat with { Y = height };
+    }
+
+    /// <summary>The terrain under the mouse, or null when the pointer is outside the viewport or above the horizon.</summary>
+    public Point3D? PointerGround() => IsMouseOver ? TerrainPoint(Mouse.GetPosition(this)) : null;
 
     /// <summary>Recompute the plan for the pointer: one ghost while hovering, a row while a stroke is under way.</summary>
     internal void UpdateBrush(Point point)

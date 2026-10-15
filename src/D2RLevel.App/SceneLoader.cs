@@ -9,6 +9,9 @@ namespace D2RLevel.App;
 
 public static class SceneLoader
 {
+    /// <summary>World units covered by one repeat of a biome layer texture, about one tile.</summary>
+    private const double TerrainTextureSpan = 10;
+
     public static LoadedScene Load(PresetDocument doc, AssetResolver? resolver, IProgress<string> progress, CancellationToken token, bool fullDetail = true, Func<string, bool, string>? resolve = null)
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
@@ -33,6 +36,39 @@ public static class SceneLoader
         Material defaultMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(144, 153, 147)));
         defaultMaterial.Freeze();
         int loaded = 0;
+        Material Texture(string albedo)
+        {
+            if (textures.TryGetValue(albedo, out var cached)) return cached;
+            cached = defaultMaterial;
+            try
+            {
+                cached = PreviewMaterials.FromTexture(resolve?.Invoke(albedo, false) ?? resolver!.Resolve(albedo),
+                    fullDetail ? 1024 : 512, out int decoded);
+                textureBytes += decoded;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            { messages.Add($"Texture {albedo}: {ex.Message}"); }
+            return textures[albedo] = cached;
+        }
+        // The preset's own biome wins over the terrain model's, which is often the placeholder test biome.
+        string? sceneBiome = doc.Biome;
+        var biomeMaterials = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
+        Material BiomeMaterial(string modelBiome)
+        {
+            string biome = sceneBiome ?? modelBiome;
+            if (biomeMaterials.TryGetValue(biome, out var cached)) return cached;
+            cached = defaultMaterial;
+            try
+            {
+                if (BiomeReader.BaseLayerAlbedo(resolve?.Invoke(biome, false) ?? resolver!.Resolve(biome)) is not { } albedo)
+                    messages.Add($"Biome {biome} has no terrain layer textures.");
+                else if (Texture(albedo) is var layer && layer != defaultMaterial)
+                    cached = PreviewMaterials.BiomeLayer(layer);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            { messages.Add($"Biome {biome}: {ex.Message}"); }
+            return biomeMaterials[biome] = cached;
+        }
         Model3DGroup? LoadModel(string path)
         {
             if (models.TryGetValue(path, out var model)) return model;
@@ -52,28 +88,23 @@ public static class SceneLoader
                         geometry.Positions.Add(new(part.Positions[i], part.Positions[i + 1], part.Positions[i + 2]));
                         geometry.Normals.Add(new(part.Normals[i], part.Normals[i + 1], part.Normals[i + 2]));
                     }
-                    for (int i = 0; i < part.UVs.Length; i += 2) geometry.TextureCoordinates.Add(new(part.UVs[i], part.UVs[i + 1]));
+                    // Terrain UVs span the whole preset once; biome layers tile by world position instead.
+                    if (part.Surface == SurfaceKind.Biome)
+                        for (int i = 0; i < part.Positions.Length; i += 3)
+                            geometry.TextureCoordinates.Add(new(part.Positions[i] / TerrainTextureSpan, part.Positions[i + 2] / TerrainTextureSpan));
+                    else
+                        for (int i = 0; i < part.UVs.Length; i += 2) geometry.TextureCoordinates.Add(new(part.UVs[i], part.UVs[i + 1]));
                     for (int i = 0; i < part.Indices.Length; i += 3)
                     { geometry.TriangleIndices.Add(part.Indices[i]); geometry.TriangleIndices.Add(part.Indices[i + 1]); geometry.TriangleIndices.Add(part.Indices[i + 2]); }
-                    Material material = defaultMaterial;
-                    if (part.AlbedoPath is { } albedo)
+                    Material material = part.Surface switch
                     {
-                        if (!textures.TryGetValue(albedo, out var cached))
-                        {
-                            cached = material;
-                            try
-                            {
-                                cached = PreviewMaterials.FromTexture(resolve?.Invoke(albedo, false) ?? resolver.Resolve(albedo),
-                                    fullDetail ? 1024 : 512, out int decoded);
-                                textureBytes += decoded;
-                            }
-                            catch (Exception ex) when (ex is not OperationCanceledException)
-                            { messages.Add($"Texture {albedo}: {ex.Message}"); }
-                            textures[albedo] = cached;
-                        }
-                        material = cached;
-                    }
-                    else messages.Add($"No albedo reference: {path} / {part.Name}");
+                        SurfaceKind.Textured when part.AlbedoPath is { } albedo => Texture(albedo),
+                        SurfaceKind.Biome => BiomeMaterial(part.SurfaceDetail!),
+                        SurfaceKind.Water => PreviewMaterials.Water,
+                        SurfaceKind.Blood => PreviewMaterials.Blood,
+                        _ => defaultMaterial,
+                    };
+                    if (part.Surface == SurfaceKind.Unknown) messages.Add($"Unrecognized material ({part.SurfaceDetail}): {path} / {part.Name}");
                     model.Children.Add(new GeometryModel3D(geometry, material) { BackMaterial = material });
                 }
                 model.Freeze();
@@ -157,7 +188,7 @@ public static class SceneLoader
             items.Add(new(entity, model ?? proxy, model is null, modelTextures.GetValueOrDefault(path!)));
         }
         if (doc.Entities.Any(e => e.ModelPaths.Count > 1)) messages.Add("Variation preview uses the first listed model; all variants remain preserved in JSON.");
-        messages.Add("Preview: static meshes + albedo. Particles, biome shading, skeletal animation is not rendered. DS1 NPC previews use a static reference pose.");
+        messages.Add("Preview: static meshes + albedo. Terrain without a paired DS1 shows its biome's base layer; water is a flat tint. Particles, biome blending and skeletal animation are not rendered. DS1 NPC previews use a static reference pose.");
         long Triangles(Model3D model) => model is GeometryModel3D { Geometry: MeshGeometry3D mesh } ? mesh.TriangleIndices.Count / 3 :
             model is Model3DGroup group ? group.Children.Sum(Triangles) : 0;
         messages.Add($"Scene metrics: {(fullDetail ? "Full detail" : $"Balanced (LOD{preferredLod} / 512px)")} · {items.Sum(i => Triangles(i.Geometry)):N0} instanced triangles · {textureBytes / 1048576d:F1} MiB decoded textures · {timer.Elapsed.TotalSeconds:F2}s load");
