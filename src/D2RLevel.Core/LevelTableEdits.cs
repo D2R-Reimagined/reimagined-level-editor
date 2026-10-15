@@ -71,13 +71,19 @@ public sealed class LevelTableEdits
         foreach (var (path, data) in witnesses) if (!Equal(File.Exists(path) ? File.ReadAllBytes(path) : null, data)) throw new IOException("Connection dependency changed outside the editor: " + path);
     }
     public void Apply(IReadOnlyList<(int Area, int Slot, int Destination)> routes)
+        => ApplyCells(routes.Select(r => (r.Area, r.Slot, "Vis", r.Destination)).ToArray());
+
+    internal void AssignWarp(AreaEndpoint endpoint, int warp)
+        => ApplyCells([(endpoint.Area, endpoint.Slot, "Warp", warp)]);
+
+    private void ApplyCells(IReadOnlyList<(int Area, int Slot, string Prefix, int Destination)> routes)
     {
         VerifyUnchanged(); var table = Table; var lines = Lines(); var headers = lines[0].Select(Text).ToArray();
         var changes = new List<(int Start, int Length, byte[] Value)>();
         foreach (var route in routes)
         {
-            if (route.Slot is < 0 or > 7 || route.Destination <= 0) throw new InvalidDataException("Invalid connection destination or slot.");
-            var row = table.Rows.Single(r => r["Id"] == route.Area.ToString()); int column = Array.IndexOf(headers, "Vis" + route.Slot);
+            if (route.Slot is < 0 or > 7 || route.Destination < (route.Prefix == "Warp" ? 0 : 1)) throw new InvalidDataException("Invalid connection destination or slot.");
+            var row = table.Rows.Single(r => r["Id"] == route.Area.ToString()); int column = Array.IndexOf(headers, route.Prefix + route.Slot);
             if (column < 0 || column >= lines[row.Line - 1].Length) throw new InvalidDataException("Connection cell is missing from Levels.");
             var cell = lines[row.Line - 1][column]; changes.Add((cell.Start, cell.Length, Encoding.ASCII.GetBytes(route.Destination.ToString(System.Globalization.CultureInfo.InvariantCulture))));
         }

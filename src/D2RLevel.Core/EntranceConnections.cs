@@ -64,6 +64,49 @@ public sealed class EntranceConnections
         return assets?.Resolve("data/global/tiles/" + relative) ?? throw new FileNotFoundException("Map assets are unavailable.");
     }
     public IReadOnlyList<GameDataRow> WarpRows(int id) => id < 0 ? [] : warps.Rows.Where(r => Number(r["Id"]) == id).ToArray();
+    /// <summary>Existing interactive definitions suitable for newly authored hidden exits.</summary>
+    public IReadOnlyList<GameDataRow> HiddenWarpChoices => warps.Rows
+        .Where(r => Number(r["Id"]) >= 0 && Number(r["LitVersion"]) == 0 && Number(r["NoInteract"]) == 0
+            && Number(r["SelectDX"]) > 0 && Number(r["SelectDY"]) > 0
+            && new[] { "l", "r", "b" }.Contains(r["Direction"].ToLowerInvariant()))
+        .GroupBy(r => Number(r["Id"])).Select(g => g.First()).OrderBy(r => Number(r["Id"])).ToArray();
+
+    public void AssignHiddenWarp(AreaEndpoint endpoint, int warp)
+    {
+        if (edits is null) throw new InvalidOperationException("Open a workspace scene to assign an exit definition.");
+        edits.VerifyUnchanged();
+        var fresh = new EntranceConnections(assets, root, edits);
+        var connection = fresh.Connection(endpoint);
+        if (connection.Destination != 0 || connection.Warp != -1)
+            throw new InvalidOperationException("Assign a definition only to an unused slot with Warp -1. Existing exits are preserved.");
+        if (Number(fresh.Area(endpoint.Area)["DrlgType"]) != 2)
+            throw new InvalidOperationException("Exit definitions require a fixed preset area.");
+        var presets = fresh.Presets(endpoint.Area);
+        if (presets.Length == 0 || presets.Any(p => Number(p["Scan"]) != 1))
+            throw new InvalidOperationException("Enable exit scanning (Scan 1) in every area preset first.");
+        var definitions = fresh.WarpRows(warp);
+        if (definitions.Count == 0 || definitions.Any(r => Number(r["LitVersion"]) != 0 || Number(r["NoInteract"]) != 0
+            || Number(r["SelectDX"]) <= 0 || Number(r["SelectDY"]) <= 0
+            || !new[] { "l", "r", "b" }.Contains(r["Direction"].ToLowerInvariant())
+            || new[] { "OffsetX", "OffsetY", "ExitWalkX", "ExitWalkY", "SelectX", "SelectY" }.Any(h => !int.TryParse(r[h], out _))))
+            throw new InvalidOperationException("Choose an interactive, unlit Warp definition with complete geometry for a hidden exit.");
+        foreach (string direction in new[] { "l", "r" })
+            if (definitions.Count(r => r["Direction"].Equals(direction, StringComparison.OrdinalIgnoreCase) || r["Direction"].Equals("b", StringComparison.OrdinalIgnoreCase)) > 1)
+                throw new InvalidOperationException("Warp definition has ambiguous directions.");
+        var variants = fresh.Variants(endpoint.Area);
+        if (variants.Length == 0) throw new InvalidOperationException("No preset maps are available for this area.");
+        foreach (var relative in variants)
+        {
+            string path = fresh.ResolveMap(relative); var map = Ds1CollisionDocument.Load(path);
+            if (map.Act != Number(fresh.Area(endpoint.Area)["Act"]) + 1) throw new InvalidOperationException("Preset act does not match its area.");
+            foreach (var tile in map.ExitTiles().Where(t => t.IsExit && t.Main == endpoint.Slot))
+                if (!tile.Hidden || WarpGeometry.For(definitions, tile.Direction) is null)
+                    throw new InvalidOperationException("Saved exit markers are incompatible with this hidden-exit definition.");
+            edits.Witness(path);
+            if (root is not null) edits.Witness(Path.Combine(root, "global", "tiles", relative));
+        }
+        edits.AssignWarp(endpoint, warp);
+    }
     private void ValidateEndpoint(AreaEndpoint endpoint)
     {
         var area = Area(endpoint.Area); var connection = Connection(endpoint);

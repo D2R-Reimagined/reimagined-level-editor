@@ -43,6 +43,10 @@ public sealed class LegacyCollision
             var cell = new FloorCell(Document.Cell(layer, x, y));
             if (cell.IsEmpty) continue;
             int orientation = layer.Orientations[y * Document.Width + x];
+            // Hidden exit/spawn markers are scan metadata, without DT1 artwork.
+            // Keep floor and other wall layers (and explicit overrides) active.
+            if (Document.Walls.Contains(layer) && orientation is 10 or 11 &&
+                (cell.Raw & 0x80000000u) != 0 && (cell.Main is >= 0 and < 8 or 30)) continue;
             Add(orientation, cell.Main, cell.Sub);
             if (orientation == 3) Add(4, cell.Main, cell.Sub, required: false);
         }
