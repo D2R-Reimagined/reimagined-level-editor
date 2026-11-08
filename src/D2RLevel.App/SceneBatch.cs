@@ -73,6 +73,13 @@ public sealed class SceneBatch
         }
     }
 
+    /// <summary>
+    /// Ground-plane size of a batch cell in world units. Small enough that a dense map a couple of
+    /// hundred units across (heart.json is ~250) still splits into cells that frustum and focus-area
+    /// culling can skip; 128 left such maps in about six cells that were nearly always all visible.
+    /// </summary>
+    private const double CellSize = 48;
+
     public static SceneBatch[] Create(IReadOnlyList<SceneItem> items, CancellationToken token)
     {
         // Bound both spatial extent and vertex count so a small edit rebuilds only local batches.
@@ -83,7 +90,7 @@ public sealed class SceneBatch
             foreach (GeometryModel3D part in item.Geometry.Children)
             {
                 var position = item.Entity.Transform.Position;
-                var key = (part.Material, part.BackMaterial, (int)Math.Floor(position.X / 128), (int)Math.Floor(position.Z / 128), item.Entity.IsTerrain);
+                var key = (part.Material, part.BackMaterial, (int)Math.Floor(position.X / CellSize), (int)Math.Floor(position.Z / CellSize), item.Entity.IsTerrain);
                 if (!groups.TryGetValue(key, out var group)) groups[key] = group = [];
                 group.Add(new(item.Entity, part));
             }

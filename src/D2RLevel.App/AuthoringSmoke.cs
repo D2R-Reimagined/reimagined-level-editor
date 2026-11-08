@@ -98,7 +98,44 @@ public partial class MainWindow
         await CaptureAuthoring(this, Path.Combine(output, "resized.png"));
         Floors_Click(this, new());
         if (ds1Window is { } ground) { await CaptureAuthoring(ground, Path.Combine(output, "resized-ground.png")); ground.Close(); }
-        return $"PASS resize: {width}×{height} → {grown.Width}×{grown.Height}, floor {usual.Main}:{usual.Sub} fill, {units} placement(s) shifted, {result.TerrainCopies} terrain copies, links intact after reopen.\n{repair}";
+        string crop = await VerifyCrop(output, width, height, units, unit);
+        return $"PASS resize: {width}×{height} → {grown.Width}×{grown.Height}, floor {usual.Main}:{usual.Sub} fill, {units} placement(s) shifted, {result.TerrainCopies} terrain copies, links intact after reopen.\n{repair}\n{crop}";
+    }
+
+    /// <summary>Trims the grown level back to its first size with − on every edge, checking the red preview and the reopened map.</summary>
+    private async Task<string> VerifyCrop(string output, int width, int height, int units, Ds1Unit? unit)
+    {
+        var session = workspaceSession ?? throw new InvalidOperationException("Crop smoke needs a workspace scene.");
+        var map = pairedScene!.Collision!.Document;
+        string? problem = null; string summary = "";
+        _ = Dispatcher.InvokeAsync(async () =>
+        {
+            var dialog = OwnedWindows.OfType<Window>().Last(w => w.Title == L.T("Resize level"));
+            var boxes = Descendants(dialog).OfType<TextBox>().ToArray();
+            // Left, top, lower-left (Y end) and lower-right (X end), as the dialog lays them out.
+            foreach (var (box, n) in boxes.Zip(new[] { "-3", "-2", "-5", "-4" })) box.Text = n;
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            if (!Scene.HasResizePreview) problem = "The 3D view shows no resize preview.";
+            var polygons = Descendants(dialog).OfType<System.Windows.Shapes.Polygon>().ToArray();
+            if (!polygons.Any(p => p.Fill is System.Windows.Media.SolidColorBrush { Color: var c } && c == RemovedColor)) problem ??= "The dialog preview has no red removed area.";
+            summary = Descendants(dialog).OfType<TextBlock>().Select(t => t.Text).FirstOrDefault(t => t.StartsWith(L.T("Removes {0} tiles · {1} placements · {2} patrol points · {3} exit tiles · {4} object links").Split('{')[0], StringComparison.Ordinal)) ?? "";
+            if (summary.Length == 0) problem ??= "The dialog does not say what the crop removes.";
+            await CaptureAuthoring(dialog, Path.Combine(output, "crop-dialog.png"));
+            await CaptureAuthoring(this, Path.Combine(output, "crop-preview.png"));
+            dialog.DialogResult = true;
+        }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        var choice = ResizeDialog(map) ?? throw new InvalidOperationException("Crop dialog returned no choice.");
+        if (problem is not null) throw new InvalidOperationException(problem);
+        if (Scene.HasResizePreview) throw new InvalidOperationException("The resize preview stayed in the 3D view after the dialog closed.");
+        if (choice.Growth != new LevelGrowth(-3, -2, -4, -5)) throw new InvalidOperationException($"Crop dialog returned {choice.Growth}.");
+        var result = await ResizeOpenLevel(session, choice.Growth, choice.Fill, choice.Tile, choice.RepeatTerrain);
+        var cropped = pairedScene?.Collision?.Document ?? throw new InvalidOperationException("Cropped level did not reopen with its DS1: " + pairedStatus);
+        if (cropped.Width != width || cropped.Height != height || placementLinks?.Warning is not null)
+            throw new InvalidOperationException($"Cropped level reopened as {cropped.Width}×{cropped.Height}, links: {placementLinks?.Warning}.");
+        if (cropped.Units.Count != units || (unit is not null && (cropped.Units[0].X != unit.X || cropped.Units[0].Y != unit.Y)))
+            throw new InvalidOperationException("Placements did not return to their places after cropping the added edges.");
+        await CaptureAuthoring(this, Path.Combine(output, "cropped.png"));
+        return $"PASS crop: back to {result.Width}×{result.Height} with − on every edge, red preview in dialog and 3D view, {summary}, placements restored, {result.UnlinkedObjects} object(s) unlinked.";
     }
     /// <summary>Pushes one terrain copy off the grid, as older resizes did, then runs Fill terrain gaps through its dialog and undoes it all.</summary>
     private async Task<string> VerifyTerrainRepair(string output, Ds1CollisionDocument map)

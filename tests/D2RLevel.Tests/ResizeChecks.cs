@@ -30,9 +30,28 @@ internal static class ResizeChecks
         ds1.Undo();
         var empty = ds1.Grown(new(0, 0, 1, 1), GroundFill.Empty);
         check(empty.Cell(empty.Floors[0], 4, 4) == 0, "new ground can be left empty");
-        throws(() => ds1.Grown(new(0, 0, 0, 0), GroundFill.Empty), "resize must add a tile");
+        throws(() => ds1.Grown(new(0, 0, 0, 0), GroundFill.Empty), "resize must change a tile");
         throws(() => ds1.Grown(new(0, 0, 509, 0), GroundFill.Empty), "resize respects the 512-tile limit");
-        throws(() => ds1.Grown(new(-1, 0, 2, 0), GroundFill.Empty), "resize never crops");
+        throws(() => ds1.Grown(new(-2, 0, -2, 0), GroundFill.Empty), "crop keeps at least one tile");
+
+        // Cropping: the fixture's units sit on tiles (1, 1) and (2, 2); the patrol starts on the first and walks within tile 1.
+        var trimmed = ds1.Grown(new(-1, 0, 0, 0), GroundFill.Empty, 0, out var kept1);
+        check(trimmed.Width == 3 && trimmed.Height == 4 && trimmed.Cell(trimmed.Floors[0], 0, 0) == ds1.Cell(ds1.Floors[0], 1, 0) && kept1.SequenceEqual([0, 1]),
+            "cropping X start drops the first column and shifts the rest");
+        check(trimmed.Units[0] == ds1.Units[0] with { X = ds1.Units[0].X - 5 } && trimmed.PatrolPoints(0).SequenceEqual(ds1.PatrolPoints(0).Select(p => p with { X = p.X - 5 })),
+            "placements and patrols shift back with a cropped start edge");
+        check(Ds1CollisionDocument.Load(Save(root, "trimmed.ds1", trimmed)).Serialize().SequenceEqual(trimmed.Serialize()) && trimmed.GameplayWarning is null, "cropped map reloads byte-exactly");
+        var narrowed = ds1.Grown(new(0, 0, -2, 0), GroundFill.Empty, 0, out var kept2);
+        check(ds1.Loss(new(0, 0, -2, 0)) == new ResizeLoss(1, 0, 0, 0, 0) && narrowed.Units.Count == 1 && kept2.SequenceEqual([0, -1]) && narrowed.PatrolPoints(0).Count == 2,
+            "placements on removed tiles are dropped and reported");
+        var flat = ds1.Grown(new(0, 0, 0, -3), GroundFill.Empty);
+        check(ds1.Loss(new(0, 0, 0, -3)) == new ResizeLoss(2, 1, 2, 0, 0) && flat.Units.Count == 0 && flat.Height == 1 && flat.GameplayWarning is null,
+            "a patrol whose start is removed goes with it");
+        ds1.InsertPathPoint(0, 2, 17, 17, 0);
+        check(ds1.Loss(new(0, 0, -1, -1)) == new ResizeLoss(0, 0, 1, 0, 0) && ds1.Grown(new(0, 0, -1, -1), GroundFill.Empty).PatrolPoints(0).Count == 2,
+            "patrol points on removed tiles are trimmed from a surviving route");
+        ds1.Undo();
+        check(ds1.Grown(new(-1, 0, 2, 0), GroundFill.Empty).Width == 5, "one edge can grow while another shrinks");
         throws(() => ds1.Grown(new(0, 0, 1, 0), GroundFill.Tile, 0), "tile fill requires a tile");
 
         // A saved level project with a terrain mesh, a linked model and owned collision.
@@ -92,6 +111,14 @@ internal static class ResizeChecks
         repairJson.Undo();
         check(repairJson.TerrainEntities().SequenceEqual(terrain) && !repairJson.IsDirty, "undo restores the original terrain copies");
         throws(() => repairJson.RepairTerrain(terrain[0], [terrain[0]], []), "terrain repair never removes its source");
+
+        // Crop away the column holding the rock's owned collision: the link is dropped, the rock stays, the unit survives.
+        var cropped = LevelResizer.Apply(data, scene, new(-4, 0, 0, 0), GroundFill.Empty, 0, false);
+        var json3 = PresetDocument.Load(jsonPath); var map3 = Ds1CollisionDocument.Load(mapPath); var links3 = new PlacementLinks(json3, map3);
+        check(cropped.Width == 2 && cropped.Height == 8 && cropped.UnlinkedObjects == 1 && LevelProject.ForPreset(jsonPath) is { Width: 2, Height: 8 }, "crop writes the smaller map and project");
+        check(links3.Warning is null && links3.Links.Count == 0 && json3.Entities.Single(e => e.Name == "rock").Transform.Position == new Vector3d(-10, 0, 20),
+            "links on removed tiles are dropped and their objects shift back but stay");
+        check(map3.Units.Count == 1 && map3.Units[0] == map2.Units[1] with { Index = 0, X = map2.Units[1].X - 20 }, "placements on kept tiles survive the crop");
 
         File.WriteAllText(jsonPath + LevelProject.Suffix, "{}");
         var unchanged = File.ReadAllBytes(mapPath);

@@ -25,7 +25,7 @@
               <MenuItem Header="{l:T 'Entrances and exits…'}" Click="Entrances_Click"/>
               <MenuItem Header="{l:T 'Gameplay prefabs…'}" Click="GameplayPrefabs_Click"/>
               <MenuItem Header="{l:T 'Draw ground / edit gameplay…'}" Click="Floors_Click"/>
-              <MenuItem Header="{l:T 'Resize level…'}" Click="ResizeLevel_Click" ToolTip="{l:T 'Add tiles around the level and fill the new space with ground.'}"/>
+              <MenuItem Header="{l:T 'Resize level…'}" Click="ResizeLevel_Click" ToolTip="{l:T 'Add or remove tiles on any edge of the level; new tiles are filled with ground.'}"/>
               <MenuItem Header="{l:T 'Fill terrain gaps…'}" Click="FillTerrainGaps_Click" ToolTip="{l:T 'Lay copies of the terrain mesh edge to edge wherever the map has no HD ground, and line up copies that sit off the grid.'}"/>
             </MenuItem>
             <MenuItem Header="{l:T '_View'}">
@@ -55,7 +55,7 @@
             <Button x:Name="SaveSceneButton" Content="{l:T 'Save Scene'}" Click="SaveScene_Click" IsEnabled="False"/>
             <Button x:Name="UndoButton" Content="{l:T 'Undo'}" Click="Undo_Click"/><Button x:Name="RedoButton" Content="{l:T 'Redo'}" Click="Redo_Click"/>
             <Button Content="{l:T 'Ground / gameplay…'}" Click="Floors_Click"/>
-            <Button Content="{l:T 'Resize level…'}" Click="ResizeLevel_Click" ToolTip="{l:T 'Add tiles around the level and fill the new space with ground.'}"/>
+            <Button Content="{l:T 'Resize level…'}" Click="ResizeLevel_Click" ToolTip="{l:T 'Add or remove tiles on any edge of the level; new tiles are filled with ground.'}"/>
             <Button Content="{l:T 'Tileset palette…'}" Click="TilesetPalette_Click" ToolTip="{l:T 'Paint models from the level tileset into the scene.'}"/>
             <Button x:Name="UpdateButton" Content="{l:T 'Check for updates'}" Click="Update_Click" Margin="18,3,3,3"/>
         </WrapPanel>

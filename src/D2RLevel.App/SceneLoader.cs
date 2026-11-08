@@ -82,20 +82,7 @@ public static class SceneLoader
                 foreach (var part in asset.Parts)
                 {
                     token.ThrowIfCancellationRequested();
-                    var geometry = new MeshGeometry3D();
-                    for (int i = 0; i < part.Positions.Length; i += 3)
-                    {
-                        geometry.Positions.Add(new(part.Positions[i], part.Positions[i + 1], part.Positions[i + 2]));
-                        geometry.Normals.Add(new(part.Normals[i], part.Normals[i + 1], part.Normals[i + 2]));
-                    }
-                    // Terrain UVs span the whole preset once; biome layers tile by world position instead.
-                    if (part.Surface == SurfaceKind.Biome)
-                        for (int i = 0; i < part.Positions.Length; i += 3)
-                            geometry.TextureCoordinates.Add(new(part.Positions[i] / TerrainTextureSpan, part.Positions[i + 2] / TerrainTextureSpan));
-                    else
-                        for (int i = 0; i < part.UVs.Length; i += 2) geometry.TextureCoordinates.Add(new(part.UVs[i], part.UVs[i + 1]));
-                    for (int i = 0; i < part.Indices.Length; i += 3)
-                    { geometry.TriangleIndices.Add(part.Indices[i]); geometry.TriangleIndices.Add(part.Indices[i + 1]); geometry.TriangleIndices.Add(part.Indices[i + 2]); }
+                    var geometry = CompactGeometry(part);
                     Material material = part.Surface switch
                     {
                         SurfaceKind.Textured when part.AlbedoPath is { } albedo => Texture(albedo),
@@ -105,7 +92,10 @@ public static class SceneLoader
                         _ => defaultMaterial,
                     };
                     if (part.Surface == SurfaceKind.Unknown) messages.Add($"Unrecognized material ({part.SurfaceDetail}): {path} / {part.Name}");
-                    model.Children.Add(new GeometryModel3D(geometry, material) { BackMaterial = material });
+                    // WPF draws a mesh with a back material twice. Only see-through cards (foliage, decals) and
+                    // surfaces of unknown kind need their back faces; solid props are closed from the editor's view.
+                    bool twoSided = material == defaultMaterial || PreviewMaterials.HasTransparency(material);
+                    model.Children.Add(new GeometryModel3D(geometry, material) { BackMaterial = twoSided ? material : null });
                 }
                 model.Freeze();
             }
@@ -191,7 +181,9 @@ public static class SceneLoader
         messages.Add("Preview: static meshes + albedo. Terrain without a paired DS1 shows its biome's base layer; water is a flat tint. Particles, biome blending and skeletal animation are not rendered. DS1 NPC previews use a static reference pose.");
         long Triangles(Model3D model) => model is GeometryModel3D { Geometry: MeshGeometry3D mesh } ? mesh.TriangleIndices.Count / 3 :
             model is Model3DGroup group ? group.Children.Sum(Triangles) : 0;
-        messages.Add($"Scene metrics: {(fullDetail ? "Full detail" : $"Balanced (LOD{preferredLod} / 512px)")} · {items.Sum(i => Triangles(i.Geometry)):N0} instanced triangles · {textureBytes / 1048576d:F1} MiB decoded textures · {timer.Elapsed.TotalSeconds:F2}s load");
+        long Vertices(Model3D model) => model is GeometryModel3D { Geometry: MeshGeometry3D mesh } ? mesh.Positions.Count :
+            model is Model3DGroup group ? group.Children.Sum(Vertices) : 0;
+        messages.Add($"Scene metrics: {(fullDetail ? "Full detail" : $"Balanced (LOD{preferredLod} / 512px)")} · {items.Sum(i => Triangles(i.Geometry)):N0} instanced triangles · {items.Sum(i => Vertices(i.Geometry)):N0} vertices · {textureBytes / 1048576d:F1} MiB decoded textures · {timer.Elapsed.TotalSeconds:F2}s load");
         if (prefabPlacements > 0)
             messages.Add($"Prefabs: {prefabsExpanded} / {prefabPlacements} placements expanded read-only from {prefabs.Count(p => p.Value is not null)} prefab files · {prefabNested} nested placements · {prefabMissing + prefabBlocked} prefab meshes missing");
         foreach (var group in items.GroupBy(i => i.Entity.PreviewModel ?? i.Entity.PrefabPath).OrderByDescending(g => g.Sum(i => Triangles(i.Geometry))).Take(5))
@@ -208,6 +200,35 @@ public static class SceneLoader
         var diagnostics = messages.ToList();
         if (blocked > 0) diagnostics.Insert(0, $"{blocked} model instances need a Granny decoder. The files were found, but their compressed geometry cannot be read. Click Granny decoder… and choose a 64-bit granny2.dll; the scene reloads automatically.");
         return new(items, diagnostics, loaded, batches, blocked);
+    }
+
+    /// <summary>
+    /// Builds one material part's mesh from only the vertices it indexes. The material parts of a model
+    /// usually share the model's whole vertex buffer, so copying it per part multiplies the vertices WPF
+    /// has to process (heart.json drew 6.4M vertices for 2M triangles before this).
+    /// </summary>
+    internal static MeshGeometry3D CompactGeometry(MeshPart part)
+    {
+        var remap = new int[part.Positions.Length / 3];
+        Array.Fill(remap, -1);
+        var positions = new Point3DCollection(); var normals = new Vector3DCollection();
+        var uvs = new PointCollection(); var indices = new Int32Collection(part.Indices.Length);
+        foreach (int source in part.Indices)
+        {
+            if (remap[source] < 0)
+            {
+                remap[source] = positions.Count;
+                int i = source * 3, t = source * 2;
+                positions.Add(new(part.Positions[i], part.Positions[i + 1], part.Positions[i + 2]));
+                normals.Add(new(part.Normals[i], part.Normals[i + 1], part.Normals[i + 2]));
+                // Terrain UVs span the whole preset once; biome layers tile by world position instead.
+                uvs.Add(part.Surface == SurfaceKind.Biome ? new(part.Positions[i] / TerrainTextureSpan, part.Positions[i + 2] / TerrainTextureSpan)
+                    : t + 1 < part.UVs.Length ? new(part.UVs[t], part.UVs[t + 1]) : new());
+            }
+            indices.Add(remap[source]);
+        }
+        positions.Freeze(); normals.Freeze(); uvs.Freeze(); indices.Freeze();
+        return new MeshGeometry3D { Positions = positions, Normals = normals, TextureCoordinates = uvs, TriangleIndices = indices };
     }
 
     private sealed record Prefab(Model3DGroup Geometry, int Missing, int Blocked, int Nested);

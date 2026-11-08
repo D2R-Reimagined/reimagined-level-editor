@@ -31,6 +31,15 @@ internal static class PreviewMaterials
 
     public static bool IsBiomeLayer(Material material) => (bool)material.GetValue(BiomeLayerProperty);
 
+    private static readonly DependencyProperty TransparencyProperty =
+        DependencyProperty.RegisterAttached("Transparency", typeof(bool), typeof(PreviewMaterials), new PropertyMetadata(false));
+
+    /// <summary>
+    /// True for an albedo with cut-out areas (foliage cards, decals, broken panes). Such surfaces are
+    /// seen from both sides, so they keep a back material; opaque ones are drawn front-facing only.
+    /// </summary>
+    public static bool HasTransparency(Material material) => (bool)material.GetValue(TransparencyProperty);
+
     private static Material Frozen(Material material) { material.Freeze(); return material; }
 
     private static Material Liquid(Color color) => Frozen(new MaterialGroup
@@ -44,11 +53,18 @@ internal static class PreviewMaterials
         var pixels = TextureReader.Load(physicalPath, maxSize);
         decodedBytes = pixels.Rgba.Length;
         // WPF's Bgra32 format needs a red/blue swap.
+        int cutout = 0;
         for (int i = 0; i < pixels.Rgba.Length; i += 4)
+        {
             (pixels.Rgba[i], pixels.Rgba[i + 2]) = (pixels.Rgba[i + 2], pixels.Rgba[i]);
+            if (pixels.Rgba[i + 3] < 128) cutout++;
+        }
         var bitmap = BitmapSource.Create(pixels.Width, pixels.Height, 96, 96, PixelFormats.Bgra32, null, pixels.Rgba, pixels.Width * 4);
         bitmap.Freeze();
         var brush = new ImageBrush(bitmap) { TileMode = TileMode.Tile, ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, 1, 1) };
-        return Frozen(new DiffuseMaterial(brush));
+        var material = new DiffuseMaterial(brush);
+        // A few stray low-alpha texels (compression noise, padding) do not make a surface see-through.
+        if (cutout > pixels.Rgba.Length / 4 / 1000) material.SetValue(TransparencyProperty, true);
+        return Frozen(material);
     }
 }
